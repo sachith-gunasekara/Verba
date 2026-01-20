@@ -1,9 +1,13 @@
 """Async/sync wrapper utilities."""
 
 import asyncio
+import threading
 from typing import Any, AsyncGenerator, Generator, TypeVar, Coroutine
 
 T = TypeVar("T")
+
+# Thread-local storage for event loops
+_loop_storage = threading.local()
 
 
 def run_sync(coro: Coroutine[Any, Any, T]) -> T:
@@ -11,11 +15,12 @@ def run_sync(coro: Coroutine[Any, Any, T]) -> T:
     Run async coroutine synchronously.
 
     If already in an async context, raises RuntimeError.
-    Otherwise, creates a new event loop and runs the coroutine.
+    Otherwise, reuses a thread-local event loop to avoid closing
+    the loop between calls (which would invalidate async clients).
     """
     try:
         loop = asyncio.get_running_loop()
-        # Already in async context - cannot use asyncio.run()
+        # Already in async context - cannot use run_until_complete
         raise RuntimeError(
             "Cannot run async coroutine synchronously from within an async context. "
             "Use 'await' instead or run from a sync context."
@@ -23,8 +28,14 @@ def run_sync(coro: Coroutine[Any, Any, T]) -> T:
     except RuntimeError as e:
         if "Cannot run async" in str(e):
             raise
-        # No running loop, create one
-        return asyncio.run(coro)
+        # No running loop, check if we have a thread-local loop
+        if not hasattr(_loop_storage, 'loop') or _loop_storage.loop.is_closed():
+            # Create a new event loop for this thread
+            _loop_storage.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(_loop_storage.loop)
+        
+        # Run the coroutine in the existing loop
+        return _loop_storage.loop.run_until_complete(coro)
 
 
 class AsyncToSyncIterator:

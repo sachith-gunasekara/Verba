@@ -68,6 +68,7 @@ class Verba:
         weaviate_url: Optional[str] = None,
         weaviate_key: Optional[str] = None,
         port: str = "8080",
+        grpc_port: Optional[str] = None,
         auto_connect: bool = True,
     ):
         """
@@ -77,7 +78,8 @@ class Verba:
             deployment: Deployment type - "Local", "Weaviate", "Docker", or "Custom"
             weaviate_url: Weaviate URL (required for Weaviate/Custom deployments)
             weaviate_key: Weaviate API key (required for Weaviate/Custom deployments)
-            port: Port for Custom deployment (default: "8080")
+            port: HTTP port for Custom deployment (default: "8080")
+            grpc_port: gRPC port for Custom deployment (default: "50051" if not specified)
             auto_connect: Automatically connect on initialization (default: True)
         """
         self._manager = VerbaManager()
@@ -88,6 +90,7 @@ class Verba:
             key=weaviate_key or "",
         )
         self._port = port
+        self._grpc_port = grpc_port
         self._rag_config = None
         self._config_manager = None
 
@@ -98,7 +101,7 @@ class Verba:
         """Explicitly connect to Weaviate and load configuration."""
         try:
             self._client = run_sync(
-                self._manager.connect(self._credentials, self._port)
+                self._manager.connect(self._credentials, self._port, self._grpc_port)
             )
             if not self._client:
                 raise ConnectionError("Failed to connect to Weaviate")
@@ -111,7 +114,7 @@ class Verba:
             raise ConnectionError(f"Failed to connect to Weaviate: {str(e)}")
 
     def close(self) -> None:
-        """Close the connection to Weaviate."""
+        """Close the connection to Weaviate and clean up resources."""
         if self._client:
             run_sync(self._manager.disconnect(self._client))
             self._client = None

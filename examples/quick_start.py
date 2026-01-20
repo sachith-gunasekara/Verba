@@ -9,13 +9,13 @@ Make sure Weaviate is running: docker ps | grep weaviate
 from goldenverba import Verba
 
 # Connect to Weaviate running in Docker on localhost:8080
-# If your Weaviate is on a different host/port, use Custom deployment instead
+# HTTP port is 8080, gRPC port is 50051 (default)
 verba = Verba(deployment="Custom", weaviate_url="localhost", port="8080")
 
 # Add a document
 verba.add_document(
     content="Python is a programming language. It's easy to learn and powerful.",
-    title="Python Intro"
+    title="Python Intro",
 )
 
 # Query it

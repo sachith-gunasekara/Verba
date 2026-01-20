@@ -53,11 +53,11 @@ class VerbaManager:
         self.verify_installed_libraries()
         self.verify_variables()
 
-    async def connect(self, credentials: Credentials, port: str = "8080"):
+    async def connect(self, credentials: Credentials, port: str = "8080", grpc_port: str | None = None):
         start_time = asyncio.get_event_loop().time()
         try:
             client = await self.weaviate_manager.connect(
-                credentials.deployment, credentials.url, credentials.key, port
+                credentials.deployment, credentials.url, credentials.key, port, grpc_port
             )
         except Exception as e:
             raise e
