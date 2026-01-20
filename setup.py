@@ -40,6 +40,7 @@ setup(
         "python-docx==1.1.2",
         "scikit-learn==1.5.1",
         "langchain-text-splitters==0.2.2",
+        "numpy<2.0",  # Pin numpy < 2.0 for spacy 3.7.5 compatibility
         "spacy==3.7.5",
         "aiohttp==3.9.5",
         "markdownify==0.13.1",
