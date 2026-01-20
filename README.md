@@ -320,23 +320,28 @@ Visit localhost:8000
 
 # How to build from Source
 
+For detailed development setup instructions, see [DEVELOPMENT.md](DEVELOPMENT.md).
+
+Quick setup:
+
 1. **Clone the Verba repos**
 
 ```
 git clone https://github.com/weaviate/Verba.git
+cd Verba
 ```
 
 2. **Initialize a new Python Environment**
 
 ```
-python3 -m virtualenv venv
-source venv/bin/activate
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-3. **Install Verba**
+3. **Install Verba in editable mode with dev dependencies**
 
 ```
-pip install -e .
+pip install -e ".[dev]"
 ```
 
 4. **Launch Verba**
@@ -354,6 +359,12 @@ Visit localhost:8000
 ```
 
 6. (Optional) **Create .env file and add environment variables**
+
+See [DEVELOPMENT.md](DEVELOPMENT.md) for complete setup instructions, including:
+- Setting up Weaviate (Docker, Embedded, or Cloud)
+- Running tests
+- Code formatting
+- Development workflow
 
 # How to install Verba with Docker
 
