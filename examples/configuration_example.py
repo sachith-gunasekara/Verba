@@ -11,10 +11,10 @@ from goldenverba import Verba
 def main():
     print("🚀 Verba SDK - Configuration Example\n")
 
-    # Initialize Verba
+    # Initialize Verba with Docker Weaviate
     print("1. Initializing Verba...")
-    verba = Verba(deployment="Local")
-    print("   ✓ Connected\n")
+    verba = Verba(deployment="Custom", weaviate_url="localhost", port="8080")
+    print("   ✓ Connected to Weaviate in Docker\n")
 
     # Show available components
     print("2. Available components:")

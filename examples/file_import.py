@@ -46,10 +46,10 @@ The SDK can handle various file formats including PDF, Markdown, and plain text.
 def main():
     print("🚀 Verba SDK - File Import Example\n")
 
-    # Initialize Verba
+    # Initialize Verba with Docker Weaviate
     print("1. Initializing Verba...")
-    verba = Verba(deployment="Local")
-    print("   ✓ Connected\n")
+    verba = Verba(deployment="Custom", weaviate_url="localhost", port="8080")
+    print("   ✓ Connected to Weaviate in Docker\n")
 
     # Create sample files
     print("2. Creating sample files...")

@@ -16,10 +16,10 @@ from goldenverba import Verba
 def main():
     print("🚀 Verba SDK - Basic Usage Example\n")
 
-    # Initialize Verba with local Weaviate Embedded
-    print("1. Initializing Verba with local Weaviate...")
-    verba = Verba(deployment="Local")
-    print("   ✓ Connected to local Weaviate\n")
+    # Initialize Verba with Weaviate running in Docker
+    print("1. Initializing Verba with Docker Weaviate...")
+    verba = Verba(deployment="Custom", weaviate_url="localhost", port="8080")
+    print("   ✓ Connected to Weaviate in Docker\n")
 
     # Add a document
     print("2. Adding a document...")

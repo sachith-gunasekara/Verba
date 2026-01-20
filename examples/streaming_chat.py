@@ -12,10 +12,10 @@ import sys
 def main():
     print("🚀 Verba SDK - Streaming Chat Example\n")
 
-    # Initialize Verba
+    # Initialize Verba with Docker Weaviate
     print("Initializing Verba...")
-    verba = Verba(deployment="Local")
-    print("✓ Connected\n")
+    verba = Verba(deployment="Custom", weaviate_url="localhost", port="8080")
+    print("✓ Connected to Weaviate in Docker\n")
 
     # Add some documents
     print("Adding documents...")

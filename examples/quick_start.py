@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Quick Start - Minimal Example
+Quick Start - Minimal Example with Docker Weaviate
 
-This is the simplest possible example showing that you DON'T need to start
-a separate Weaviate server. Weaviate Embedded runs automatically!
+This example connects to Weaviate running in Docker.
+Make sure Weaviate is running: docker ps | grep weaviate
 """
 
 from goldenverba import Verba
 
-# That's it! No server setup needed.
-# Weaviate Embedded starts automatically when you create Verba()
-verba = Verba(deployment="Local")
+# Connect to Weaviate running in Docker on localhost:8080
+# If your Weaviate is on a different host/port, use Custom deployment instead
+verba = Verba(deployment="Custom", weaviate_url="localhost", port="8080")
 
 # Add a document
 verba.add_document(
@@ -30,4 +30,4 @@ print(f"\nChat response: {response.answer}")
 # Clean up
 verba.close()
 
-print("\n✅ Done! No Weaviate server was needed - it ran embedded in Python.")
+print("\n✅ Done! Connected to Weaviate running in Docker.")

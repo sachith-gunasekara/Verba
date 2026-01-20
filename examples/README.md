@@ -1,38 +1,99 @@
 # Verba SDK Examples
 
-This directory contains example scripts demonstrating how to use the Verba Python SDK with local Weaviate.
+This directory contains example scripts demonstrating how to use the Verba Python SDK with Weaviate running in Docker.
 
-## How Weaviate Works with the SDK
+## Prerequisites
 
-### No Separate Server Needed for Local Deployment! 🎉
+### 1. Weaviate Running in Docker
 
-When you use `deployment="Local"` in the SDK, Verba uses **Weaviate Embedded**, which means:
+Make sure you have Weaviate running in Docker. Check with:
 
-- ✅ **No separate Weaviate server to start** - it runs inside your Python process
-- ✅ **Automatic setup** - Verba handles everything when you call `Verba()`
-- ✅ **Data persists** - stored in `~/.local/share/weaviate` on your machine
-- ⚠️ **Not supported on Windows** - use Docker deployment instead
+```bash
+docker ps | grep weaviate
+```
 
-### Deployment Options
+If Weaviate is not running, start it:
 
-1. **Local (Embedded)** - `Verba(deployment="Local")`
-   - Runs Weaviate inside Python process
-   - No setup required
-   - Best for development and testing
+```bash
+# Option 1: Using docker-compose (if you have docker-compose.yml)
+docker compose up -d weaviate
+
+# Option 2: Run Weaviate directly
+docker run -d \
+  --name weaviate \
+  -p 8080:8080 \
+  -p 50051:50051 \
+  semitechnologies/weaviate:1.25.10 \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --scheme http \
+  --env AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true
+```
+
+Verify it's running:
+```bash
+curl http://localhost:8080/v1/.well-known/ready
+```
+
+### 2. Install Verba
+
+```bash
+pip install goldenverba
+```
+
+### 3. API Keys (Optional)
+
+For components that require API keys (OpenAI, Anthropic, etc.), set them as environment variables or in a `.env` file.
+
+## Connection Details
+
+All examples use **Custom deployment** to connect to Weaviate in Docker:
+
+```python
+verba = Verba(
+    deployment="Custom",
+    weaviate_url="localhost",  # Change if Weaviate is on different host
+    port="8080"                # Change if Weaviate uses different port
+)
+```
+
+### If Your Weaviate is on a Different Host/Port
+
+If your Weaviate Docker container is accessible at a different address:
+
+```python
+# Different host
+verba = Verba(deployment="Custom", weaviate_url="192.168.1.100", port="8080")
+
+# Different port
+verba = Verba(deployment="Custom", weaviate_url="localhost", port="8090")
+
+# With authentication (if enabled)
+verba = Verba(
+    deployment="Custom",
+    weaviate_url="localhost",
+    port="8080",
+    weaviate_key="your-api-key"
+)
+```
+
+## Deployment Options Reference
+
+1. **Custom (Examples)** - `Verba(deployment="Custom", weaviate_url="localhost", port="8080")`
+   - Connect to Weaviate running in Docker or any Weaviate instance
    - **This is what all examples use**
 
-2. **Docker** - `Verba(deployment="Docker")`
-   - Requires Weaviate running in Docker
-   - Use if you already have docker-compose setup
-   - Works on all platforms including Windows
+2. **Local (Embedded)** - `Verba(deployment="Local")`
+   - Runs Weaviate inside Python process (no Docker needed)
+   - Not supported on Windows
+   - Data stored in `~/.local/share/weaviate`
 
-3. **Weaviate Cloud** - `Verba(deployment="Weaviate", weaviate_url="...", weaviate_key="...")`
+3. **Docker** - `Verba(deployment="Docker")`
+   - Connects to Weaviate service named "weaviate" in Docker network
+   - Only works when Verba itself is running in Docker
+
+4. **Weaviate Cloud** - `Verba(deployment="Weaviate", weaviate_url="...", weaviate_key="...")`
    - Connect to cloud-hosted Weaviate instance
-   - Requires Weaviate Cloud account
-
-4. **Custom** - `Verba(deployment="Custom", weaviate_url="...", port="8080")`
-   - Connect to your own Weaviate server
-   - Requires separate Weaviate instance running
 
 ## Prerequisites
 
@@ -129,14 +190,33 @@ Or create a `.env` file in the project root (see `goldenverba/.env.example`).
 
 ## Notes
 
-- All examples use `deployment="Local"` which uses Weaviate Embedded
-- Weaviate Embedded is not supported on Windows - use Docker deployment instead
-- Examples create temporary data that persists in Weaviate until you reset it
-- To reset data, you can use: `verba reset` CLI command
+- All examples connect to Weaviate running in Docker on `localhost:8080`
+- If your Weaviate is on a different host/port, modify the `Verba()` call in each script
+- Examples create data that persists in Weaviate Docker volume
+- To reset data, restart the Weaviate container or use: `verba reset` CLI command
 
 ## Troubleshooting
 
-If you encounter connection issues:
-1. Ensure you have sufficient system resources (Weaviate Embedded requires memory)
-2. Check that no other Weaviate instance is running on the default port
-3. On Windows, use Docker deployment instead of Local
+### Connection Issues
+
+1. **Verify Weaviate is running:**
+   ```bash
+   docker ps | grep weaviate
+   curl http://localhost:8080/v1/.well-known/ready
+   ```
+
+2. **Check Weaviate logs:**
+   ```bash
+   docker logs weaviate
+   ```
+
+3. **If Weaviate is on different host/port:**
+   - Update `weaviate_url` and `port` in the `Verba()` call
+   - Example: `Verba(deployment="Custom", weaviate_url="192.168.1.100", port="8080")`
+
+4. **If authentication is enabled:**
+   - Add `weaviate_key="your-api-key"` to the `Verba()` call
+
+5. **Check firewall/network:**
+   - Ensure port 8080 is accessible
+   - If using Docker network, ensure proper network configuration
