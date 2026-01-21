@@ -70,7 +70,14 @@ class OpenAIEmbedder(Embedding):
 
     async def vectorize(self, config: dict, content: List[str]) -> List[List[float]]:
         """Vectorize the input content using OpenAI's API."""
-        model = config.get("Model", {"value": "text-embedding-ada-002"}).value
+        # Handle both InputConfig objects and plain dicts (from JSON serialization)
+        def get_config_value(key, default=None):
+            val = config.get(key)
+            if val is None:
+                return default
+            return val.value if hasattr(val, 'value') else val.get("value", default)
+        
+        model = get_config_value("Model", "text-embedding-ada-002")
         key_name = (
             "OPENAI_EMBED_API_KEY"
             if get_token("OPENAI_EMBED_API_KEY")
@@ -87,12 +94,7 @@ class OpenAIEmbedder(Embedding):
         base_url = get_environment(config, "URL", base_url_name, "No OpenAI URL found")
 
         # Get API version (for Azure OpenAI)
-        # Config contains InputConfig objects, access .value directly
-        api_version_config = config.get("API Version")
-        if api_version_config:
-            api_version = api_version_config.value
-        else:
-            api_version = os.getenv("OPENAI_API_VERSION", "2024-02-15-preview")
+        api_version = get_config_value("API Version", os.getenv("OPENAI_API_VERSION", "2024-02-15-preview"))
 
         headers = {
             "Content-Type": "application/json",
@@ -110,15 +112,18 @@ class OpenAIEmbedder(Embedding):
         if "openai.azure.com" in base_url or "azure.com" in base_url:
             # Azure OpenAI format
             base_url = base_url.rstrip("/")
-            
+
             # Check if URL already includes the full path
             if "/embeddings" in base_url:
                 # /embeddings already present, just add/update api-version
                 if "?" in base_url:
                     # Replace existing api-version or add it
                     import re
+
                     if "api-version=" in base_url:
-                        endpoint = re.sub(r"api-version=[^&]*", f"api-version={api_version}", base_url)
+                        endpoint = re.sub(
+                            r"api-version=[^&]*", f"api-version={api_version}", base_url
+                        )
                     else:
                         endpoint = f"{base_url}&api-version={api_version}"
                 else:
@@ -136,7 +141,7 @@ class OpenAIEmbedder(Embedding):
                     # For Azure, deployment might be named differently
                     # Try using the full model name or a shortened version
                     deployment_name = model
-                
+
                 endpoint = f"{base_url}/openai/deployments/{deployment_name}/embeddings?api-version={api_version}"
         else:
             # Standard OpenAI format

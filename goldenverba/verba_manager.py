@@ -53,11 +53,17 @@ class VerbaManager:
         self.verify_installed_libraries()
         self.verify_variables()
 
-    async def connect(self, credentials: Credentials, port: str = "8080", grpc_port: str | None = None):
+    async def connect(
+        self, credentials: Credentials, port: str = "8080", grpc_port: str | None = None
+    ):
         start_time = asyncio.get_event_loop().time()
         try:
             client = await self.weaviate_manager.connect(
-                credentials.deployment, credentials.url, credentials.key, port, grpc_port
+                credentials.deployment,
+                credentials.url,
+                credentials.key,
+                port,
+                grpc_port,
             )
         except Exception as e:
             raise e
@@ -123,7 +129,7 @@ class VerbaManager:
                 )
 
             documents = await self.reader_manager.load(
-                fileConfig.rag_config["Reader"]["selected"], fileConfig, logger
+                fileConfig.rag_config["Reader"].selected, fileConfig, logger
             )
 
             tasks = [
@@ -214,11 +220,11 @@ class VerbaManager:
 
             chunk_task = asyncio.create_task(
                 self.chunker_manager.chunk(
-                    currentFileConfig.rag_config["Chunker"]["selected"],
+                    currentFileConfig.rag_config["Chunker"].selected,
                     currentFileConfig,
                     [document],
                     self.embedder_manager.embedders[
-                        currentFileConfig.rag_config["Embedder"]["selected"]
+                        currentFileConfig.rag_config["Embedder"].selected
                     ],
                     logger,
                 )
@@ -227,7 +233,7 @@ class VerbaManager:
 
             embedding_task = asyncio.create_task(
                 self.embedder_manager.vectorize(
-                    currentFileConfig.rag_config["Embedder"]["selected"],
+                    currentFileConfig.rag_config["Embedder"].selected,
                     currentFileConfig,
                     chunked_documents,
                     logger,
@@ -241,9 +247,9 @@ class VerbaManager:
                         client,
                         document,
                         currentFileConfig.rag_config["Embedder"]
-                        ["components"][fileConfig.rag_config["Embedder"]["selected"]]
-                        ["config"]["Model"]
-                        ["value"],
+                        .components[fileConfig.rag_config["Embedder"].selected]
+                        .config["Model"]
+                        .value,
                     )
                 )
                 await ingesting_task
@@ -738,7 +744,6 @@ class VerbaManager:
         context: str,
         conversation: list[dict],
     ):
-
         full_text = ""
         async for result in self.generator_manager.generate_stream(
             rag_config, query, context, conversation
@@ -771,7 +776,6 @@ class ClientManager:
     async def connect(
         self, credentials: Credentials, port: str = "8080"
     ) -> WeaviateAsyncClient:
-
         _credentials = credentials
 
         if not _credentials.url and not _credentials.key:

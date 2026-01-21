@@ -48,7 +48,9 @@ def pca(X, k):
 
 def get_environment(config, value: str, env: str, error_msg: str) -> str:
     if value in config:
-        token = config[value].value
+        val = config[value]
+        # Handle both InputConfig objects and plain dicts
+        token = val.value if hasattr(val, 'value') else val.get("value") if isinstance(val, dict) else val
     else:
         token = os.environ.get(env)
     if not token or token == "":
@@ -59,3 +61,15 @@ def get_token(env: str, default: str = None) -> str:
     # return token, but treat empty string als None
     token = tok if bool(tok := os.getenv(env, None)) else default
     return token
+
+
+def get_config_value(config: dict, key: str, default=None):
+    """Get value from config, handling both InputConfig objects and plain dicts."""
+    val = config.get(key)
+    if val is None:
+        return default
+    if hasattr(val, 'value'):
+        return val.value
+    if isinstance(val, dict) and 'value' in val:
+        return val.get("value", default)
+    return val

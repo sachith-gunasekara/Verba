@@ -26,12 +26,13 @@ if not os.getenv("OPENAI_EMBED_BASE_URL"):
 # HTTP port is 8080, gRPC port is 50051 (default)
 verba = Verba(deployment="Custom", weaviate_url="localhost", port="8080")
 
-# Configure to use Azure OpenAI embedder
+# Configure to use Azure OpenAI for embeddings and generation
 # The base URL should be set via OPENAI_EMBED_BASE_URL environment variable
 # Format: https://<resource-name>.openai.azure.com/openai/deployments/<deployment-name>
 # API version can be set via OPENAI_API_VERSION (default: 2024-02-15-preview)
 verba.configure(
     embedder="OpenAI",
+    generator="OpenAI",  # Use OpenAI for chat as well
     embedder_config={
         "URL": os.getenv("OPENAI_EMBED_BASE_URL", ""),
         "Model": "text-embedding-3-small",  # Use small embedding model

@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from goldenverba.components.interfaces import Generator
 from goldenverba.components.types import InputConfig
-from goldenverba.components.util import get_environment, get_token
+from goldenverba.components.util import get_environment, get_token, get_config_value
 from typing import List
 import httpx
 import json
@@ -56,8 +56,8 @@ class OpenAIGenerator(Generator):
         context: str,
         conversation: list[dict] = [],
     ):
-        system_message = config.get("System Message").value
-        model = config.get("Model", {"value": "gpt-3.5-turbo"}).value
+        system_message = get_config_value(config, "System Message", "")
+        model = get_config_value(config, "Model", "gpt-3.5-turbo")
         openai_key = get_environment(
             config, "API Key", "OPENAI_API_KEY", "No OpenAI API Key found"
         )

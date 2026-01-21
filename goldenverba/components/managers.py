@@ -974,13 +974,13 @@ class ReaderManager:
             loop = asyncio.get_running_loop()
             start_time = loop.time()
             if reader in self.readers:
-                config = fileConfig.rag_config["Reader"]["components"][reader]["config"]
+                config = fileConfig.rag_config["Reader"].components[reader].config
                 documents: list[Document] = await self.readers[reader].load(
                     config, fileConfig
                 )
                 for document in documents:
                     document.meta["Reader"] = (
-                        fileConfig.rag_config["Reader"]["components"][reader].model_dump()
+                        fileConfig.rag_config["Reader"].components[reader].model_dump()
                     )
                 elapsed_time = round(loop.time() - start_time, 2)
                 if len(documents) == 1:
@@ -1026,9 +1026,9 @@ class ChunkerManager:
             loop = asyncio.get_running_loop()
             start_time = loop.time()
             if chunker in self.chunkers:
-                config = fileConfig.rag_config["Chunker"]["components"][chunker]["config"]
+                config = fileConfig.rag_config["Chunker"].components[chunker].config
                 embedder_config = (
-                    fileConfig.rag_config["Embedder"]["components"][embedder.name]["config"]
+                    fileConfig.rag_config["Embedder"].components[embedder.name].config
                 )
                 chunked_documents = await self.chunkers[chunker].chunk(
                     config=config,
@@ -1089,7 +1089,7 @@ class EmbeddingManager:
             loop = asyncio.get_running_loop()
             start_time = loop.time()
             if embedder in self.embedders:
-                config = fileConfig.rag_config["Embedder"]["components"][embedder]["config"]
+                config = fileConfig.rag_config["Embedder"].components[embedder].config
 
                 for document in documents:
                     content = [
