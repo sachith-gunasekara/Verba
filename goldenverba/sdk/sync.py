@@ -29,11 +29,11 @@ def run_sync(coro: Coroutine[Any, Any, T]) -> T:
         if "Cannot run async" in str(e):
             raise
         # No running loop, check if we have a thread-local loop
-        if not hasattr(_loop_storage, 'loop') or _loop_storage.loop.is_closed():
+        if not hasattr(_loop_storage, "loop") or _loop_storage.loop.is_closed():
             # Create a new event loop for this thread
             _loop_storage.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(_loop_storage.loop)
-        
+
         # Run the coroutine in the existing loop
         return _loop_storage.loop.run_until_complete(coro)
 

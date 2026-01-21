@@ -29,11 +29,13 @@ verba = Verba(deployment="Custom", weaviate_url="localhost", port="8080")
 # Configure to use Azure OpenAI embedder
 # The base URL should be set via OPENAI_EMBED_BASE_URL environment variable
 # Format: https://<resource-name>.openai.azure.com/openai/deployments/<deployment-name>
+# API version can be set via OPENAI_API_VERSION (default: 2024-02-15-preview)
 verba.configure(
     embedder="OpenAI",
     embedder_config={
         "URL": os.getenv("OPENAI_EMBED_BASE_URL", ""),
         "Model": "text-embedding-3-small",  # Use small embedding model
+        "API Version": os.getenv("OPENAI_API_VERSION", "2024-02-15-preview"),
     },
 )
 

@@ -35,6 +35,7 @@ def main():
         embedder_config={
             "URL": os.getenv("OPENAI_EMBED_BASE_URL", ""),
             "Model": "text-embedding-3-small",
+            "API Version": os.getenv("OPENAI_API_VERSION", "2024-02-15-preview"),
         },
     )
 
@@ -81,6 +82,7 @@ def main():
                 embedder_config={
                     "URL": os.getenv("OPENAI_EMBED_BASE_URL", ""),
                     "Model": "text-embedding-3-small",
+                    "API Version": os.getenv("OPENAI_API_VERSION", "2024-02-15-preview"),
                 },
             )
             print("   ✓ Configuration updated\n")
