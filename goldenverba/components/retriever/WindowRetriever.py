@@ -54,12 +54,17 @@ class WindowRetriever(Retriever):
         labels,
         document_uuids,
     ):
-        search_mode = config["Search Mode"].value
-        limit_mode = config["Limit Mode"].value
-        limit = int(config["Limit/Sensitivity"].value)
+        # Handle both InputConfig objects and dicts (from JSON serialization)
+        def get_value(key):
+            val = config[key]
+            return val.value if hasattr(val, 'value') else val.get("value", val)
+        
+        search_mode = get_value("Search Mode")
+        limit_mode = get_value("Limit Mode")
+        limit = int(get_value("Limit/Sensitivity"))
 
-        window = max(0, min(10, int(config["Chunk Window"].value)))
-        window_threshold = max(0, min(100, int(config["Threshold"].value)))
+        window = max(0, min(10, int(get_value("Chunk Window"))))
+        window_threshold = max(0, min(100, int(get_value("Threshold"))))
         window_threshold /= 100
 
         if search_mode == "Hybrid Search":

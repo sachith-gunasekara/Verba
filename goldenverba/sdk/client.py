@@ -284,7 +284,10 @@ class Verba:
                 raise DocumentNotFoundError("Document imported but data not found")
 
             # Get chunk count
-            embedder_model = rag_config["Embedder"]["config"]["Model"]["value"]
+            # RAG config structure: rag_config["Embedder"]["components"][embedder_name]["config"]
+            embedder_name = rag_config["Embedder"]["selected"]
+            embedder_config = rag_config["Embedder"]["components"][embedder_name]["config"]
+            embedder_model = embedder_config["Model"]["value"]
             chunk_count = run_sync(
                 self._manager.weaviate_manager.get_chunk_count(
                     self._client, embedder_model, doc_uuid

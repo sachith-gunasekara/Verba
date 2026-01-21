@@ -85,11 +85,14 @@ class OpenAIEmbedder(Embedding):
             else "OPENAI_BASE_URL"
         )
         base_url = get_environment(config, "URL", base_url_name, "No OpenAI URL found")
-        
+
         # Get API version (for Azure OpenAI)
-        api_version = config.get("API Version", {}).get("value", os.getenv("OPENAI_API_VERSION", "2024-02-15-preview"))
-        if isinstance(api_version, dict):
-            api_version = api_version.get("value", "2024-02-15-preview")
+        # Config contains InputConfig objects, access .value directly
+        api_version_config = config.get("API Version")
+        if api_version_config:
+            api_version = api_version_config.value
+        else:
+            api_version = os.getenv("OPENAI_API_VERSION", "2024-02-15-preview")
 
         headers = {
             "Content-Type": "application/json",
@@ -105,18 +108,36 @@ class OpenAIEmbedder(Embedding):
         # Azure: https://<resource>.openai.azure.com/openai/deployments/<deployment>/embeddings?api-version=<version>
         # OpenAI: https://api.openai.com/v1/embeddings
         if "openai.azure.com" in base_url or "azure.com" in base_url:
-            # Azure OpenAI format - URL should already include /deployments/<deployment>
-            # We need to append /embeddings?api-version=<version>
+            # Azure OpenAI format
             base_url = base_url.rstrip("/")
+            
+            # Check if URL already includes the full path
             if "/embeddings" in base_url:
-                # If /embeddings already in URL, just add api-version
+                # /embeddings already present, just add/update api-version
                 if "?" in base_url:
-                    endpoint = f"{base_url}&api-version={api_version}"
+                    # Replace existing api-version or add it
+                    import re
+                    if "api-version=" in base_url:
+                        endpoint = re.sub(r"api-version=[^&]*", f"api-version={api_version}", base_url)
+                    else:
+                        endpoint = f"{base_url}&api-version={api_version}"
                 else:
                     endpoint = f"{base_url}?api-version={api_version}"
-            else:
-                # Add /embeddings and api-version
+            elif "/openai/deployments/" in base_url:
+                # URL has /openai/deployments/<deployment>, add /embeddings
                 endpoint = f"{base_url}/embeddings?api-version={api_version}"
+            else:
+                # URL is just the base (e.g., https://<resource>.openai.azure.com)
+                # Need to construct: /openai/deployments/<model>/embeddings
+                # Use the model name as deployment name (common Azure pattern)
+                # Remove "text-embedding-" prefix if present for deployment name
+                deployment_name = model
+                if model.startswith("text-embedding-"):
+                    # For Azure, deployment might be named differently
+                    # Try using the full model name or a shortened version
+                    deployment_name = model
+                
+                endpoint = f"{base_url}/openai/deployments/{deployment_name}/embeddings?api-version={api_version}"
         else:
             # Standard OpenAI format
             if base_url.endswith("/embeddings"):

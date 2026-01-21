@@ -123,7 +123,7 @@ class VerbaManager:
                 )
 
             documents = await self.reader_manager.load(
-                fileConfig.rag_config["Reader"].selected, fileConfig, logger
+                fileConfig.rag_config["Reader"]["selected"], fileConfig, logger
             )
 
             tasks = [
@@ -214,11 +214,11 @@ class VerbaManager:
 
             chunk_task = asyncio.create_task(
                 self.chunker_manager.chunk(
-                    currentFileConfig.rag_config["Chunker"].selected,
+                    currentFileConfig.rag_config["Chunker"]["selected"],
                     currentFileConfig,
                     [document],
                     self.embedder_manager.embedders[
-                        currentFileConfig.rag_config["Embedder"].selected
+                        currentFileConfig.rag_config["Embedder"]["selected"]
                     ],
                     logger,
                 )
@@ -227,7 +227,7 @@ class VerbaManager:
 
             embedding_task = asyncio.create_task(
                 self.embedder_manager.vectorize(
-                    currentFileConfig.rag_config["Embedder"].selected,
+                    currentFileConfig.rag_config["Embedder"]["selected"],
                     currentFileConfig,
                     chunked_documents,
                     logger,
@@ -241,9 +241,9 @@ class VerbaManager:
                         client,
                         document,
                         currentFileConfig.rag_config["Embedder"]
-                        .components[fileConfig.rag_config["Embedder"].selected]
-                        .config["Model"]
-                        .value,
+                        ["components"][fileConfig.rag_config["Embedder"]["selected"]]
+                        ["config"]["Model"]
+                        ["value"],
                     )
                 )
                 await ingesting_task
@@ -710,8 +710,8 @@ class VerbaManager:
         labels: list[str] = [],
         document_uuids: list[str] = [],
     ):
-        retriever = rag_config["Retriever"].selected
-        embedder = rag_config["Embedder"].selected
+        retriever = rag_config["Retriever"]["selected"]
+        embedder = rag_config["Embedder"]["selected"]
 
         await self.weaviate_manager.add_suggestion(client, query)
 
