@@ -13,7 +13,7 @@ SDK_DEPS = [
     "wasabi==1.1.2",
     "asyncio==3.4.3",
     "tiktoken==0.6.0",
-    "requests==2.31.0",
+    "requests==2.32.5",
     "aiohttp==3.9.5",
     "numpy<2.0",  # Pin numpy < 2.0 for spacy 3.7.5 compatibility
     "scikit-learn==1.5.1",  # For PCA on embeddings
