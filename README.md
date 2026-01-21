@@ -717,6 +717,101 @@ with Verba() as verba:
 # Connection automatically closed
 ```
 
+### Async/Await Support (FastAPI & Async Applications)
+
+The Verba SDK supports both synchronous and asynchronous usage patterns. When using Verba in async contexts (like FastAPI, async web frameworks, or async Python applications), use the async methods to avoid blocking and ensure proper async/await patterns.
+
+#### Important Notes for Async Usage
+
+1. **Set `auto_connect=False`** when initializing in async contexts to prevent automatic connection attempts
+2. **Use async methods** (methods ending with `_async`) when calling from async functions
+3. **Connect manually** using `await verba.connect_async()` in your application startup
+
+#### FastAPI Example
+
+```python
+from fastapi import FastAPI
+from goldenverba import Verba
+
+app = FastAPI()
+
+# Initialize without auto_connect in async context
+verba = Verba(
+    deployment="Custom",
+    weaviate_url="localhost",
+    port="8080",
+    auto_connect=False  # Important: set to False in async contexts
+)
+
+@app.on_event("startup")
+async def startup():
+    """Initialize Verba connection on FastAPI startup."""
+    await verba.connect_async()
+
+@app.on_event("shutdown")
+async def shutdown():
+    """Close Verba connection on FastAPI shutdown."""
+    await verba.close_async()
+
+@app.post("/documents")
+async def add_document(content: str, title: str):
+    """Add a document using async method."""
+    doc = await verba.add_document_async(
+        content=content,
+        title=title
+    )
+    return doc
+
+@app.get("/documents")
+async def list_documents():
+    """List documents using async method."""
+    doc_list = await verba.list_documents_async()
+    return doc_list.documents
+
+@app.post("/query")
+async def query(query: str):
+    """Query documents using async method."""
+    results = await verba.query_async(query=query, limit=5)
+    return results
+
+@app.post("/chat")
+async def chat(message: str):
+    """Chat with RAG using async method."""
+    response = await verba.chat_async(message=message)
+    return response
+```
+
+#### Available Async Methods
+
+All public methods have async counterparts:
+
+- `connect_async()` - Connect to Weaviate asynchronously
+- `close_async()` - Close connection asynchronously
+- `add_document_async()` - Add documents asynchronously
+- `list_documents_async()` - List documents asynchronously
+- `get_document_async()` - Get document asynchronously
+- `delete_document_async()` - Delete document asynchronously
+- `query_async()` - Query documents asynchronously
+- `chat_async()` - Chat with RAG asynchronously (supports streaming)
+- `configure_async()` - Configure RAG pipeline asynchronously
+
+#### Async Streaming Chat
+
+```python
+@app.post("/chat/stream")
+async def chat_stream(message: str):
+    """Stream chat responses."""
+    async for chunk in verba.chat_async(message=message, stream=True):
+        yield chunk
+```
+
+#### Sync vs Async Methods
+
+- **Sync methods** (e.g., `connect()`, `add_document()`) - Use in synchronous Python code, scripts, or Jupyter notebooks
+- **Async methods** (e.g., `connect_async()`, `add_document_async()`) - Use in async contexts like FastAPI, async web frameworks, or async Python applications
+
+The SDK automatically detects async contexts and prevents errors when sync methods are called from async code. Always use async methods when working in async contexts.
+
 ### Available Components
 
 ```python
@@ -757,6 +852,7 @@ See the `examples/` directory for complete working examples:
 - `file_import.py` - Importing files and URLs
 - `batch_import.py` - Bulk document import
 - `configuration_example.py` - RAG pipeline configuration
+- `fastapi_example.py` - FastAPI integration with async/await support
 
 ## Open Source Contribution
 

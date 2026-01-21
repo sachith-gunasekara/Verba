@@ -3,7 +3,7 @@
 import base64
 import uuid
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Iterator, Callable, Literal
+from typing import Optional, List, Dict, Any, Iterator, Callable, Literal, AsyncIterator
 
 from goldenverba.verba_manager import VerbaManager
 from goldenverba.server.types import (
@@ -29,6 +29,7 @@ from goldenverba.sdk.exceptions import (
 )
 from goldenverba.sdk.sync import run_sync, AsyncToSyncIterator
 from goldenverba.sdk.config import ConfigManager
+import asyncio
 
 
 class CallbackLogger(LoggerManager):
@@ -95,10 +96,17 @@ class Verba:
         self._config_manager = None
 
         if auto_connect:
-            self.connect()
+            # Check if we're in an async context
+            try:
+                asyncio.get_running_loop()
+                # In async context - don't auto-connect, user must call connect_async()
+                # This prevents the RuntimeError from run_sync
+            except RuntimeError:
+                # Not in async context - safe to use sync connect
+                self.connect()
 
     def connect(self) -> None:
-        """Explicitly connect to Weaviate and load configuration."""
+        """Explicitly connect to Weaviate and load configuration (sync version)."""
         try:
             self._client = run_sync(
                 self._manager.connect(self._credentials, self._port, self._grpc_port)
@@ -113,10 +121,34 @@ class Verba:
                 raise
             raise ConnectionError(f"Failed to connect to Weaviate: {str(e)}")
 
+    async def connect_async(self) -> None:
+        """Explicitly connect to Weaviate and load configuration (async version)."""
+        try:
+            self._client = await self._manager.connect(
+                self._credentials, self._port, self._grpc_port
+            )
+            if not self._client:
+                raise ConnectionError("Failed to connect to Weaviate")
+
+            self._rag_config = await self._manager.load_rag_config(self._client)
+            self._config_manager = ConfigManager(self._rag_config)
+        except Exception as e:
+            if isinstance(e, ConnectionError):
+                raise
+            raise ConnectionError(f"Failed to connect to Weaviate: {str(e)}")
+
     def close(self) -> None:
-        """Close the connection to Weaviate and clean up resources."""
+        """Close the connection to Weaviate and clean up resources (sync version)."""
         if self._client:
             run_sync(self._manager.disconnect(self._client))
+            self._client = None
+            self._rag_config = None
+            self._config_manager = None
+
+    async def close_async(self) -> None:
+        """Close the connection to Weaviate and clean up resources (async version)."""
+        if self._client:
+            await self._manager.disconnect(self._client)
             self._client = None
             self._rag_config = None
             self._config_manager = None
@@ -302,6 +334,168 @@ class Verba:
                 f"Document imported but failed to retrieve: {str(e)}"
             ) from e
 
+    async def add_document_async(
+        self,
+        content: Optional[str] = None,
+        file_path: Optional[str] = None,
+        url: Optional[str] = None,
+        title: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        metadata: str = "",
+        overwrite: bool = False,
+        reader: Optional[str] = None,
+        chunker: Optional[str] = None,
+        embedder: Optional[str] = None,
+        on_progress: Optional[Callable[[str, str, float], None]] = None,
+        **config_overrides,
+    ) -> Document:
+        """
+        Add a document to Verba (async version).
+
+        Args:
+            content: Document content as string
+            file_path: Path to file to import
+            url: URL to import from
+            title: Document title (auto-generated if not provided)
+            labels: List of labels for filtering
+            metadata: Additional metadata string
+            overwrite: Overwrite if document exists
+            reader: Reader component name (overrides default)
+            chunker: Chunker component name (overrides default)
+            embedder: Embedder component name (overrides default)
+            on_progress: Optional callback for progress updates (status, message, took)
+            **config_overrides: Additional config overrides (e.g., chunker_config={"Units": 100})
+
+        Returns:
+            Document object with UUID and metadata
+
+        Raises:
+            ImportError: If import fails
+            ValueError: If invalid arguments provided
+        """
+        if not self._client:
+            raise ConnectionError("Not connected. Call connect_async() first.")
+
+        # Validate input
+        input_count = sum([content is not None, file_path is not None, url is not None])
+        if input_count != 1:
+            raise ValueError(
+                "Exactly one of 'content', 'file_path', or 'url' must be provided"
+            )
+
+        # Prepare FileConfig
+        file_id = str(uuid.uuid4())
+
+        if file_path:
+            path = Path(file_path)
+            if not path.exists():
+                raise FileNotFoundError(f"File not found: {file_path}")
+
+            filename = title or path.name
+            extension = path.suffix.lstrip(".")
+
+            # Read and encode file
+            with open(path, "rb") as f:
+                file_bytes = f.read()
+                encoded_content = base64.b64encode(file_bytes).decode("utf-8")
+
+            file_size = len(file_bytes)
+            is_url = False
+            source = str(path.absolute())
+            content_str = encoded_content
+
+        elif url:
+            filename = title or url.split("/")[-1] or "url_document"
+            extension = ""
+            file_size = 0
+            is_url = True
+            source = url
+            content_str = url
+
+        else:  # content
+            if content is None:
+                raise ValueError("Content cannot be None")
+            filename = title or "text_document"
+            extension = ""
+            file_size = len(content.encode("utf-8"))
+            is_url = False
+            source = ""
+            content_str = content
+
+        # Get RAG config (with overrides)
+        rag_config = self._get_rag_config_with_overrides(
+            reader=reader,
+            chunker=chunker,
+            embedder=embedder,
+            **config_overrides,
+        )
+
+        # Create FileConfig
+        file_config = FileConfig(
+            fileID=file_id,
+            filename=filename,
+            isURL=is_url,
+            overwrite=overwrite,
+            extension=extension,
+            source=source,
+            content=content_str,
+            labels=labels or [],
+            rag_config=rag_config,
+            file_size=file_size,
+            status=FileStatus.READY,
+            metadata=metadata,
+            status_report={},
+        )
+
+        # Import document
+        logger = CallbackLogger(on_progress) if on_progress else LoggerManager()
+
+        try:
+            await self._manager.import_document(self._client, file_config, logger)
+        except Exception as e:
+            raise ImportError(f"Failed to import document: {str(e)}") from e
+
+        # Get imported document
+        try:
+            doc_uuid = await self._manager.weaviate_manager.exist_document_name(
+                self._client, filename
+            )
+            if not doc_uuid:
+                raise DocumentNotFoundError("Document imported but UUID not found")
+
+            doc_data = await self._manager.weaviate_manager.get_document(
+                self._client,
+                doc_uuid,
+                properties=[
+                    "title",
+                    "extension",
+                    "fileSize",
+                    "labels",
+                    "source",
+                    "meta",
+                    "metadata",
+                ],
+            )
+
+            if not doc_data or not isinstance(doc_data, dict):
+                raise DocumentNotFoundError("Document imported but data not found")
+
+            # Get chunk count
+            embedder_name = rag_config["Embedder"]["selected"]
+            embedder_config = rag_config["Embedder"]["components"][embedder_name][
+                "config"
+            ]
+            embedder_model = embedder_config["Model"]["value"]
+            chunk_count = await self._manager.weaviate_manager.get_chunk_count(
+                self._client, embedder_model, doc_uuid
+            )
+
+            return Document.from_dict(doc_data, chunk_count=chunk_count)
+        except Exception as e:
+            raise ImportError(
+                f"Document imported but failed to retrieve: {str(e)}"
+            ) from e
+
     def add_documents(
         self,
         documents: List[Dict[str, Any]],
@@ -420,6 +614,99 @@ class Verba:
         except Exception as e:
             raise QueryError(f"Failed to list documents: {str(e)}") from e
 
+    async def list_documents_async(
+        self,
+        query: str = "",
+        page: int = 1,
+        page_size: int = 10,
+        labels: Optional[List[str]] = None,
+    ) -> DocumentList:
+        """
+        List documents with pagination (async version).
+
+        Args:
+            query: Search query (empty for all documents)
+            page: Page number (1-indexed)
+            page_size: Number of documents per page
+            labels: Filter by labels
+
+        Returns:
+            DocumentList with documents and pagination info
+        """
+        if not self._client:
+            raise ConnectionError("Not connected. Call connect_async() first.")
+
+        try:
+            result = await self._manager.weaviate_manager.get_documents(
+                self._client,
+                query,
+                page_size,
+                page,
+                labels or [],
+                properties=[
+                    "title",
+                    "extension",
+                    "fileSize",
+                    "labels",
+                    "source",
+                    "meta",
+                ],
+            )
+            documents, total_count = result
+            if not isinstance(total_count, int):
+                total_count = 0
+
+            # Convert to Document objects
+            doc_objects = []
+            for doc in documents:
+                if not isinstance(doc, dict):
+                    continue
+                # Get chunk count
+                try:
+                    meta = doc.get("meta", {})
+                    if isinstance(meta, str):
+                        import json
+
+                        meta = json.loads(meta)
+                    embedder_model = (
+                        meta.get("Embedder", {})
+                        .get("config", {})
+                        .get("Model", {})
+                        .get("value", "")
+                    )
+                    if embedder_model:
+                        chunk_count = (
+                            await self._manager.weaviate_manager.get_chunk_count(
+                                self._client, embedder_model, doc["uuid"]
+                            )
+                        )
+                    else:
+                        chunk_count = 0
+                except Exception:
+                    chunk_count = 0
+
+                doc_obj = Document(
+                    uuid=doc["uuid"],
+                    title=doc["title"],
+                    content="",  # Not included in list view
+                    extension=doc.get("extension", ""),
+                    labels=doc.get("labels", []),
+                    source=doc.get("source", ""),
+                    file_size=doc.get("fileSize", 0),
+                    chunk_count=chunk_count,
+                    metadata="",
+                )
+                doc_objects.append(doc_obj)
+
+            return DocumentList(
+                documents=doc_objects,
+                total_count=total_count,
+                page=page,
+                page_size=page_size,
+            )
+        except Exception as e:
+            raise QueryError(f"Failed to list documents: {str(e)}") from e
+
     def get_document(self, uuid: str) -> Document:
         """
         Get document by UUID.
@@ -486,6 +773,68 @@ class Verba:
         except Exception as e:
             raise DocumentNotFoundError(f"Failed to get document: {str(e)}") from e
 
+    async def get_document_async(self, uuid: str) -> Document:
+        """
+        Get document by UUID (async version).
+
+        Args:
+            uuid: Document UUID
+
+        Returns:
+            Document object
+
+        Raises:
+            DocumentNotFoundError: If document not found
+        """
+        if not self._client:
+            raise ConnectionError("Not connected. Call connect_async() first.")
+
+        try:
+            doc_data = await self._manager.weaviate_manager.get_document(
+                self._client,
+                uuid,
+                properties=[
+                    "title",
+                    "extension",
+                    "fileSize",
+                    "labels",
+                    "source",
+                    "meta",
+                    "metadata",
+                ],
+            )
+
+            if not doc_data or not isinstance(doc_data, dict):
+                raise DocumentNotFoundError(f"Document with UUID '{uuid}' not found")
+
+            # Get chunk count
+            try:
+                meta = doc_data.get("meta", {})
+                if isinstance(meta, str):
+                    import json
+
+                    meta = json.loads(meta)
+                embedder_model = (
+                    meta.get("Embedder", {})
+                    .get("config", {})
+                    .get("Model", {})
+                    .get("value", "")
+                )
+                if embedder_model:
+                    chunk_count = await self._manager.weaviate_manager.get_chunk_count(
+                        self._client, embedder_model, uuid
+                    )
+                else:
+                    chunk_count = 0
+            except Exception:
+                chunk_count = 0
+
+            return Document.from_dict(doc_data, chunk_count=chunk_count)
+        except DocumentNotFoundError:
+            raise
+        except Exception as e:
+            raise DocumentNotFoundError(f"Failed to get document: {str(e)}") from e
+
     def delete_document(self, uuid: str) -> bool:
         """
         Delete document by UUID.
@@ -501,6 +850,25 @@ class Verba:
 
         try:
             run_sync(self._manager.weaviate_manager.delete_document(self._client, uuid))
+            return True
+        except Exception as e:
+            raise VerbaError(f"Failed to delete document: {str(e)}") from e
+
+    async def delete_document_async(self, uuid: str) -> bool:
+        """
+        Delete document by UUID (async version).
+
+        Args:
+            uuid: Document UUID
+
+        Returns:
+            True if deleted successfully
+        """
+        if not self._client:
+            raise ConnectionError("Not connected. Call connect_async() first.")
+
+        try:
+            await self._manager.weaviate_manager.delete_document(self._client, uuid)
             return True
         except Exception as e:
             raise VerbaError(f"Failed to delete document: {str(e)}") from e
@@ -586,6 +954,82 @@ class Verba:
                         flattened_chunks.append(chunk_with_doc)
                 else:
                     # If it's already a flat chunk dict, use it as-is
+                    flattened_chunks.append(doc)
+
+            return QueryResult.from_retrieval(query, flattened_chunks, context)
+        except Exception as e:
+            raise QueryError(f"Query failed: {str(e)}") from e
+
+    async def query_async(
+        self,
+        query: str,
+        limit: int = 5,
+        labels: Optional[List[str]] = None,
+        document_ids: Optional[List[str]] = None,
+        retriever: Optional[str] = None,
+        embedder: Optional[str] = None,
+    ) -> QueryResult:
+        """
+        Query documents and retrieve relevant chunks (async version).
+
+        Args:
+            query: Search query
+            limit: Maximum number of results
+            labels: Filter by labels
+            document_ids: Filter by document UUIDs
+            retriever: Retriever component name (overrides default)
+            embedder: Embedder component name (overrides default)
+
+        Returns:
+            QueryResult with chunks and context
+        """
+        if not self._client:
+            raise ConnectionError("Not connected. Call connect_async() first.")
+
+        # Get RAG config with overrides
+        rag_config = self._get_rag_config_with_overrides(
+            retriever=retriever, embedder=embedder
+        )
+
+        try:
+            # Convert document_ids to DocumentFilter format
+            document_filters = []
+            if document_ids:
+                for doc_id in document_ids:
+                    # Get document title for filter
+                    try:
+                        doc = await self._manager.weaviate_manager.get_document(
+                            self._client, doc_id, properties=["title"]
+                        )
+                        title = (
+                            doc.get("title", "")
+                            if doc and isinstance(doc, dict)
+                            else ""
+                        )
+                    except Exception:
+                        title = ""
+                    document_filters.append(DocumentFilter(uuid=doc_id, title=title))
+
+            documents, context = await self._manager.retrieve_chunks(
+                self._client,
+                query,
+                rag_config,
+                labels or [],
+                document_ids or [],
+            )
+
+            # Flatten documents structure
+            flattened_chunks = []
+            for doc in documents:
+                if isinstance(doc, dict) and "chunks" in doc:
+                    for chunk in doc["chunks"]:
+                        chunk_with_doc = chunk.copy()
+                        chunk_with_doc["doc_uuid"] = doc.get("uuid", "")
+                        chunk_with_doc["title"] = doc.get("title", "")
+                        if "content" not in chunk_with_doc:
+                            chunk_with_doc["content"] = ""
+                        flattened_chunks.append(chunk_with_doc)
+                else:
                     flattened_chunks.append(doc)
 
             return QueryResult.from_retrieval(query, flattened_chunks, context)
@@ -680,6 +1124,84 @@ class Verba:
         except Exception as e:
             raise GenerationError(f"Chat failed: {str(e)}") from e
 
+    async def chat_async(
+        self,
+        message: str,
+        conversation: Optional[List[Dict[str, str]]] = None,
+        stream: bool = False,
+        labels: Optional[List[str]] = None,
+        document_ids: Optional[List[str]] = None,
+        generator: Optional[str] = None,
+        retriever: Optional[str] = None,
+        embedder: Optional[str] = None,
+    ) -> ChatResponse | AsyncIterator[str]:
+        """
+        Chat with RAG - retrieves context and generates response (async version).
+
+        Args:
+            message: User message
+            conversation: Previous conversation messages [{"type": "user|assistant", "content": "..."}]
+            stream: Return streaming iterator instead of complete response
+            labels: Filter by labels
+            document_ids: Filter by document UUIDs
+            generator: Generator component name (overrides default)
+            retriever: Retriever component name (overrides default)
+            embedder: Embedder component name (overrides default)
+
+        Returns:
+            ChatResponse if stream=False, AsyncIterator[str] if stream=True
+        """
+        if not self._client:
+            raise ConnectionError("Not connected. Call connect_async() first.")
+
+        # Get RAG config with overrides
+        rag_config = self._get_rag_config_with_overrides(
+            generator=generator, retriever=retriever, embedder=embedder
+        )
+
+        try:
+            # First, retrieve relevant chunks
+            query_result = await self.query_async(
+                message,
+                limit=5,  # Default limit for chat
+                labels=labels,
+                document_ids=document_ids,
+                retriever=retriever,
+                embedder=embedder,
+            )
+
+            # Convert conversation format
+            conversation_dicts: List[Dict[str, str]] = []
+            if conversation:
+                for msg in conversation:
+                    conversation_dicts.append(
+                        {
+                            "type": msg.get("type", "user"),
+                            "content": msg.get("content", ""),
+                        }
+                    )
+
+            if stream:
+                return self._chat_stream_async(
+                    message, query_result.context, conversation_dicts, rag_config
+                )
+            else:
+                # Generate complete response
+                full_answer = ""
+                async for chunk in self._manager.generate_stream_answer(
+                    rag_config,
+                    message,
+                    query_result.context,
+                    conversation_dicts,
+                ):
+                    full_answer += chunk["message"]
+
+                return ChatResponse.from_query_result(
+                    message, query_result, full_answer
+                )
+        except Exception as e:
+            raise GenerationError(f"Chat failed: {str(e)}") from e
+
     def _chat_stream(
         self,
         message: str,
@@ -697,6 +1219,19 @@ class Verba:
 
         # type: ignore - AsyncToSyncIterator implements Iterator protocol but type checker doesn't recognize it
         return AsyncToSyncIterator(async_stream())  # type: ignore[return-value]
+
+    async def _chat_stream_async(
+        self,
+        message: str,
+        context: str,
+        conversation: List[Dict[str, str]],
+        rag_config: Dict[str, Any],
+    ) -> AsyncIterator[str]:
+        """Internal method for streaming chat responses (async version)."""
+        async for chunk in self._manager.generate_stream_answer(
+            rag_config, message, context, conversation
+        ):
+            yield chunk["message"]
 
     # Configuration
 
@@ -750,6 +1285,58 @@ class Verba:
             raise ConnectionError("Configuration manager not initialized")
         updated_config = self._config_manager.get_rag_config()
         run_sync(self._manager.set_rag_config(self._client, updated_config))
+        self._rag_config = updated_config
+
+    async def configure_async(
+        self,
+        reader: Optional[str] = None,
+        chunker: Optional[str] = None,
+        embedder: Optional[str] = None,
+        retriever: Optional[str] = None,
+        generator: Optional[str] = None,
+        **component_configs,
+    ) -> None:
+        """
+        Configure the RAG pipeline (async version).
+
+        Args:
+            reader: Reader component name
+            chunker: Chunker component name
+            embedder: Embedder component name
+            retriever: Retriever component name
+            generator: Generator component name
+            **component_configs: Config overrides like chunker_config={"Units": 100}
+        """
+        if not self._client:
+            raise ConnectionError("Not connected. Call connect_async() first.")
+
+        if not self._config_manager:
+            if not self._rag_config:
+                raise ConnectionError("Not connected. Call connect_async() first.")
+            self._config_manager = ConfigManager(self._rag_config)
+
+        # Update components
+        if reader and self._config_manager:
+            self._config_manager.update_component("Reader", reader)
+        if chunker and self._config_manager:
+            chunker_config = component_configs.get("chunker_config", {})
+            self._config_manager.update_component("Chunker", chunker, chunker_config)
+        if embedder and self._config_manager:
+            embedder_config = component_configs.get("embedder_config", {})
+            self._config_manager.update_component("Embedder", embedder, embedder_config)
+        if retriever and self._config_manager:
+            self._config_manager.update_component("Retriever", retriever)
+        if generator and self._config_manager:
+            generator_config = component_configs.get("generator_config", {})
+            self._config_manager.update_component(
+                "Generator", generator, generator_config
+            )
+
+        # Save updated config
+        if not self._config_manager:
+            raise ConnectionError("Configuration manager not initialized")
+        updated_config = self._config_manager.get_rag_config()
+        await self._manager.set_rag_config(self._client, updated_config)
         self._rag_config = updated_config
 
     @property
