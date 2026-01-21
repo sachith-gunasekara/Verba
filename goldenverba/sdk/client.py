@@ -326,17 +326,11 @@ class Verba:
         except Exception as e:
             raise ImportError(f"Failed to import document: {str(e)}") from e
 
-        # Get imported document
+        # Get imported document using the file_id we already have
         try:
-            doc_uuid = await self._manager.weaviate_manager.exist_document_name(
-                self._client, filename
-            )
-            if not doc_uuid:
-                raise DocumentNotFoundError("Document imported but UUID not found")
-
             doc_data = await self._manager.weaviate_manager.get_document(
                 self._client,
-                doc_uuid,
+                file_id,
                 properties=[
                     "title",
                     "extension",
@@ -358,7 +352,7 @@ class Verba:
             ]
             embedder_model = embedder_config["Model"]["value"]
             chunk_count = await self._manager.weaviate_manager.get_chunk_count(
-                self._client, embedder_model, doc_uuid
+                self._client, embedder_model, file_id
             )
 
             return Document.from_dict(doc_data, chunk_count=chunk_count)
