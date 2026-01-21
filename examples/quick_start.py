@@ -17,7 +17,9 @@ if not os.getenv("OPENAI_API_KEY"):
     print()
 if not os.getenv("OPENAI_EMBED_BASE_URL"):
     print("⚠️  Warning: OPENAI_EMBED_BASE_URL not set. Set it with:")
-    print("   export OPENAI_EMBED_BASE_URL='https://<resource>.openai.azure.com/openai/deployments/<deployment>'")
+    print(
+        "   export OPENAI_EMBED_BASE_URL='https://<resource>.openai.azure.com/openai/deployments/<deployment>'"
+    )
     print()
 
 # Connect to Weaviate running in Docker on localhost:8080
@@ -31,7 +33,8 @@ verba.configure(
     embedder="OpenAI",
     embedder_config={
         "URL": os.getenv("OPENAI_EMBED_BASE_URL", ""),
-    }
+        "Model": "text-embedding-3-small",  # Use small embedding model
+    },
 )
 
 # Add a document
