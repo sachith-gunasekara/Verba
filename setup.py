@@ -29,6 +29,8 @@ SDK_DEPS = [
     # Chunking
     "langchain-text-splitters>=1.0.0",
     "spacy==3.7.5",
+    # Audio transcription
+    "assemblyai==0.33.0",
 ]
 
 # Web server dependencies (FastAPI, CLI, etc.) - for web UI only
@@ -37,11 +39,6 @@ SERVER_DEPS = [
     "uvicorn[standard]==0.29.0",
     "gunicorn==22.0.0",
     "click==8.1.7",
-]
-
-# Audio transcription via AssemblyAI (optional)
-ASSEMBLYAI_DEPS = [
-    "assemblyai==0.33.0",
 ]
 
 # =============================================================================
@@ -76,9 +73,7 @@ setup(
     extras_require={
         # Full installation with web server - for web UI
         # Install with: pip install goldenverba[full]
-        "full": SERVER_DEPS + ASSEMBLYAI_DEPS,
-        # Audio transcription via AssemblyAI
-        "assemblyai": ASSEMBLYAI_DEPS,
+        "full": SERVER_DEPS,
         # Development dependencies
         "dev": ["pytest", "wheel", "twine", "black>=23.7.0", "setuptools"],
         # Google Cloud / Vertex AI
