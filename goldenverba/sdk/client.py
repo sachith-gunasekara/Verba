@@ -268,14 +268,19 @@ class Verba:
             # Read and encode file
             with open(path, "rb") as f:
                 file_bytes = f.read()
-                encoded_content = base64.b64encode(file_bytes).decode("utf-8")
 
+            if not file_bytes:
+                raise ValueError(f"File is empty: {file_path}")
+
+            encoded_content = base64.b64encode(file_bytes).decode("utf-8")
             file_size = len(file_bytes)
             is_url = False
             source = str(path.absolute())
             content_str = encoded_content
 
         elif url:
+            if not url or not url.strip():
+                raise ValueError("URL cannot be empty")
             filename = title or url.split("/")[-1] or "url_document"
             extension = ""
             file_size = 0
@@ -284,8 +289,8 @@ class Verba:
             content_str = url
 
         else:  # content
-            if content is None:
-                raise ValueError("Content cannot be None")
+            if not content or not content.strip():
+                raise ValueError("Content cannot be empty")
             filename = title or "text_document"
             extension = ""
             file_size = len(content.encode("utf-8"))
@@ -326,40 +331,34 @@ class Verba:
         except Exception as e:
             raise ImportError(f"Failed to import document: {str(e)}") from e
 
-        # Get imported document using the file_id we already have
+        # Retrieve the imported document
+        doc_data = await self._manager.weaviate_manager.get_document(
+            self._client,
+            file_id,
+            properties=[
+                "title",
+                "extension",
+                "fileSize",
+                "labels",
+                "source",
+                "meta",
+                "metadata",
+            ],
+        )
+
+        # Get chunk count
+        embedder_name = rag_config["Embedder"]["selected"]
+        embedder_config = rag_config["Embedder"]["components"][embedder_name]["config"]
+        embedder_model = embedder_config["Model"]["value"]
+
         try:
-            doc_data = await self._manager.weaviate_manager.get_document(
-                self._client,
-                file_id,
-                properties=[
-                    "title",
-                    "extension",
-                    "fileSize",
-                    "labels",
-                    "source",
-                    "meta",
-                    "metadata",
-                ],
-            )
-
-            if not doc_data or not isinstance(doc_data, dict):
-                raise DocumentNotFoundError("Document imported but data not found")
-
-            # Get chunk count
-            embedder_name = rag_config["Embedder"]["selected"]
-            embedder_config = rag_config["Embedder"]["components"][embedder_name][
-                "config"
-            ]
-            embedder_model = embedder_config["Model"]["value"]
             chunk_count = await self._manager.weaviate_manager.get_chunk_count(
                 self._client, embedder_model, file_id
             )
+        except Exception:
+            chunk_count = 0
 
-            return Document.from_dict(doc_data, chunk_count=chunk_count)
-        except Exception as e:
-            raise ImportError(
-                f"Document imported but failed to retrieve: {str(e)}"
-            ) from e
+        return Document.from_dict(doc_data, chunk_count=chunk_count)
 
     def add_document(
         self,
