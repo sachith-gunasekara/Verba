@@ -2,26 +2,37 @@
 """
 Quick Start - Minimal Example with Docker Weaviate
 
-This example connects to Weaviate running in Docker and uses OpenAI for embeddings.
+This example connects to Weaviate running in Docker and uses Azure OpenAI for embeddings.
 Make sure Weaviate is running: docker ps | grep weaviate
-Set OPENAI_API_KEY environment variable before running.
+Set OPENAI_API_KEY and OPENAI_EMBED_BASE_URL environment variables before running.
 """
 
 import os
 from goldenverba import Verba
 
-# Check for OpenAI API key
+# Check for Azure OpenAI configuration
 if not os.getenv("OPENAI_API_KEY"):
     print("⚠️  Warning: OPENAI_API_KEY not set. Set it with:")
-    print("   export OPENAI_API_KEY='your-api-key'")
+    print("   export OPENAI_API_KEY='your-azure-openai-api-key'")
+    print()
+if not os.getenv("OPENAI_EMBED_BASE_URL"):
+    print("⚠️  Warning: OPENAI_EMBED_BASE_URL not set. Set it with:")
+    print("   export OPENAI_EMBED_BASE_URL='https://<resource>.openai.azure.com/openai/deployments/<deployment>'")
     print()
 
 # Connect to Weaviate running in Docker on localhost:8080
 # HTTP port is 8080, gRPC port is 50051 (default)
 verba = Verba(deployment="Custom", weaviate_url="localhost", port="8080")
 
-# Configure to use OpenAI embedder (instead of default Ollama)
-verba.configure(embedder="OpenAI")
+# Configure to use Azure OpenAI embedder
+# The base URL should be set via OPENAI_EMBED_BASE_URL environment variable
+# Format: https://<resource-name>.openai.azure.com/openai/deployments/<deployment-name>
+verba.configure(
+    embedder="OpenAI",
+    embedder_config={
+        "URL": os.getenv("OPENAI_EMBED_BASE_URL", ""),
+    }
+)
 
 # Add a document
 verba.add_document(
