@@ -2,15 +2,26 @@
 """
 Quick Start - Minimal Example with Docker Weaviate
 
-This example connects to Weaviate running in Docker.
+This example connects to Weaviate running in Docker and uses OpenAI for embeddings.
 Make sure Weaviate is running: docker ps | grep weaviate
+Set OPENAI_API_KEY environment variable before running.
 """
 
+import os
 from goldenverba import Verba
+
+# Check for OpenAI API key
+if not os.getenv("OPENAI_API_KEY"):
+    print("⚠️  Warning: OPENAI_API_KEY not set. Set it with:")
+    print("   export OPENAI_API_KEY='your-api-key'")
+    print()
 
 # Connect to Weaviate running in Docker on localhost:8080
 # HTTP port is 8080, gRPC port is 50051 (default)
 verba = Verba(deployment="Custom", weaviate_url="localhost", port="8080")
+
+# Configure to use OpenAI embedder (instead of default Ollama)
+verba.configure(embedder="OpenAI")
 
 # Add a document
 verba.add_document(

@@ -41,9 +41,24 @@ curl http://localhost:8080/v1/.well-known/ready
 pip install goldenverba
 ```
 
-### 3. API Keys (Optional)
+### 3. API Keys (Required for Embeddings/Generation)
 
-For components that require API keys (OpenAI, Anthropic, etc.), set them as environment variables or in a `.env` file.
+**For OpenAI Embeddings (Recommended):**
+```bash
+export OPENAI_API_KEY='your-openai-api-key'
+```
+
+**For Other Providers:**
+- Cohere: `export COHERE_API_KEY='your-key'`
+- Anthropic: `export ANTHROPIC_API_KEY='your-key'`
+- VoyageAI: `export VOYAGE_API_KEY='your-key'`
+
+**Note:** If you don't have API keys, you can use Ollama (local) by running:
+```bash
+docker run -d -p 11434:11434 ollama/ollama
+```
+
+Then configure Verba to use Ollama embedder instead of OpenAI.
 
 ## Connection Details
 
