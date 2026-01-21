@@ -128,7 +128,13 @@ Verba is a fully-customizable personal assistant utilizing [Retrieval Augmented 
 
 You have three deployment options for Verba:
 
-- Install via pip
+- Install via pip (Web UI)
+
+```
+pip install goldenverba[full]
+```
+
+- Install via pip (SDK only - lightweight)
 
 ```
 pip install goldenverba
@@ -139,7 +145,7 @@ pip install goldenverba
 ```
 git clone https://github.com/weaviate/Verba
 
-pip install -e .
+pip install -e ".[full]"
 ```
 
 - Use Docker for Deployment
@@ -338,11 +344,13 @@ python3 -m virtualenv venv
 source venv/bin/activate
 ```
 
-2. **Install Verba**
+2. **Install Verba** (full installation for web UI)
 
 ```
-pip install goldenverba
+pip install goldenverba[full]
 ```
+
+> For SDK-only (programmatic usage without web server): `pip install goldenverba`
 
 3. **Launch Verba**
 
@@ -380,11 +388,13 @@ python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-3. **Install Verba in editable mode with dev dependencies**
+3. **Install Verba in editable mode with all dependencies**
 
 ```
-pip install -e ".[dev]"
+pip install -e ".[full,dev]"
 ```
+
+> For SDK-only development: `pip install -e ".[dev]"`
 
 4. **Launch Verba**
 
@@ -485,11 +495,64 @@ With Data imported, you can use the `Chat` page to ask any related questions. Yo
 
 Verba can be used directly in your Python applications without running the web server. This allows you to programmatically add documents, query, and chat with your data.
 
-### Installation
+### Installation Options
+
+#### SDK Only (Lightweight)
+
+Minimal installation for programmatic usage - no web server, no heavy NLP models:
 
 ```bash
+# From PyPI
 pip install goldenverba
+
+# From GitHub
+pip install git+https://github.com/weaviate/Verba.git
 ```
+
+#### Full Installation (Web UI)
+
+Includes web server, all document processors, and advanced chunking:
+
+```bash
+# From PyPI
+pip install goldenverba[full]
+
+# From GitHub
+pip install "git+https://github.com/weaviate/Verba.git#egg=goldenverba[full]"
+```
+
+#### Custom Installation
+
+Mix and match features as needed:
+
+```bash
+# SDK + document processing (PDF, Word, Excel)
+pip install goldenverba[documents]
+
+# SDK + web server only
+pip install goldenverba[server]
+
+# SDK + advanced chunking (spacy, langchain)
+pip install goldenverba[chunking]
+
+# Combine multiple extras
+pip install goldenverba[documents,chunking]
+
+# Everything + HuggingFace models
+pip install goldenverba[full,huggingface]
+```
+
+| Extra | Description |
+|-------|-------------|
+| `[full]` | All features (web UI, documents, chunking, audio) |
+| `[server]` | Web server (FastAPI, uvicorn, CLI) |
+| `[documents]` | Document processing (PDF, Word, Excel, HTML) |
+| `[chunking]` | Advanced chunking (spacy, langchain) |
+| `[assemblyai]` | Audio transcription |
+| `[huggingface]` | Local embedding models |
+| `[google]` | Google Vertex AI |
+
+> **Note:** The base SDK installation supports text content import and basic chunking. For the full Verba web UI experience, use `pip install goldenverba[full]`.
 
 ### Quick Start
 
