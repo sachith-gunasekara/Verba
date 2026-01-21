@@ -2,7 +2,7 @@
 """
 Basic Verba SDK Usage Example
 
-This script demonstrates basic usage of the Verba SDK with local Weaviate Embedded.
+This script demonstrates basic usage of the Verba SDK with Docker Weaviate and Azure OpenAI.
 It shows how to:
 - Initialize Verba
 - Add documents
@@ -10,16 +10,38 @@ It shows how to:
 - Chat with RAG
 """
 
+import os
 from goldenverba import Verba
 
 
 def main():
     print("🚀 Verba SDK - Basic Usage Example\n")
 
+    # Check for Azure OpenAI configuration
+    if not os.getenv("OPENAI_API_KEY"):
+        print("⚠️  Warning: OPENAI_API_KEY not set. Set it with:")
+        print("   export OPENAI_API_KEY='your-azure-openai-api-key'")
+        print()
+    if not os.getenv("OPENAI_EMBED_BASE_URL"):
+        print("⚠️  Warning: OPENAI_EMBED_BASE_URL not set. Set it with:")
+        print(
+            "   export OPENAI_EMBED_BASE_URL='https://<resource>.openai.azure.com/openai/deployments/<deployment>'"
+        )
+        print()
+
     # Initialize Verba with Weaviate running in Docker
     print("1. Initializing Verba with Docker Weaviate...")
     verba = Verba(deployment="Custom", weaviate_url="localhost", port="8080")
     print("   ✓ Connected to Weaviate in Docker\n")
+
+    # Configure to use Azure OpenAI embedder
+    verba.configure(
+        embedder="OpenAI",
+        embedder_config={
+            "URL": os.getenv("OPENAI_EMBED_BASE_URL", ""),
+            "Model": "text-embedding-3-small",
+        },
+    )
 
     # Add a document
     print("2. Adding a document...")

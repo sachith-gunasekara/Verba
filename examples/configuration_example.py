@@ -2,19 +2,41 @@
 """
 Configuration Example
 
-This script demonstrates how to configure the RAG pipeline components.
+This script demonstrates how to configure the RAG pipeline components with Azure OpenAI.
 """
 
+import os
 from goldenverba import Verba
 
 
 def main():
     print("🚀 Verba SDK - Configuration Example\n")
 
+    # Check for Azure OpenAI configuration
+    if not os.getenv("OPENAI_API_KEY"):
+        print("⚠️  Warning: OPENAI_API_KEY not set. Set it with:")
+        print("   export OPENAI_API_KEY='your-azure-openai-api-key'")
+        print()
+    if not os.getenv("OPENAI_EMBED_BASE_URL"):
+        print("⚠️  Warning: OPENAI_EMBED_BASE_URL not set. Set it with:")
+        print(
+            "   export OPENAI_EMBED_BASE_URL='https://<resource>.openai.azure.com/openai/deployments/<deployment>'"
+        )
+        print()
+
     # Initialize Verba with Docker Weaviate
     print("1. Initializing Verba...")
     verba = Verba(deployment="Custom", weaviate_url="localhost", port="8080")
     print("   ✓ Connected to Weaviate in Docker\n")
+
+    # Configure to use Azure OpenAI embedder
+    verba.configure(
+        embedder="OpenAI",
+        embedder_config={
+            "URL": os.getenv("OPENAI_EMBED_BASE_URL", ""),
+            "Model": "text-embedding-3-small",
+        },
+    )
 
     # Show available components
     print("2. Available components:")
@@ -53,9 +75,13 @@ def main():
             verba.configure(
                 reader=reader,
                 chunker=chunker,
-                embedder=embedder,
+                embedder="OpenAI",  # Use OpenAI embedder
                 retriever=retriever,
                 generator=generator,
+                embedder_config={
+                    "URL": os.getenv("OPENAI_EMBED_BASE_URL", ""),
+                    "Model": "text-embedding-3-small",
+                },
             )
             print("   ✓ Configuration updated\n")
         else:
