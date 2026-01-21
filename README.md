@@ -499,7 +499,7 @@ Verba can be used directly in your Python applications without running the web s
 
 #### SDK Only (Lightweight)
 
-Minimal installation for programmatic usage - no web server, no heavy NLP models:
+Minimal installation for programmatic usage - excludes web server (FastAPI) and spacy:
 
 ```bash
 # From PyPI
