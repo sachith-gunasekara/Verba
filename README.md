@@ -441,7 +441,7 @@ With Data imported, you can use the `Chat` page to ask any related questions. Yo
 
 ## Python SDK Usage
 
-Verba can be used directly in your Python applications without running the web server:
+Verba can be used directly in your Python applications without running the web server. This allows you to programmatically add documents, query, and chat with your data.
 
 ### Installation
 
@@ -478,9 +478,33 @@ print(f"Sources: {len(response.sources)} chunks")
 verba.close()
 ```
 
-### Advanced Usage
+### Deployment Options
 
-#### With Weaviate Cloud
+#### Local Weaviate Embedded (Default)
+
+```python
+from goldenverba import Verba
+
+# Uses Weaviate Embedded - no setup required
+verba = Verba()
+```
+
+#### Docker Weaviate
+
+```python
+from goldenverba import Verba
+
+# Connect to Weaviate running in Docker
+# HTTP port: 8080, gRPC port: 50051
+verba = Verba(
+    deployment="Custom",
+    weaviate_url="localhost",
+    port="8080",
+    grpc_port="50051"  # Optional, defaults to 50051
+)
+```
+
+#### Weaviate Cloud
 
 ```python
 from goldenverba import Verba
@@ -492,7 +516,63 @@ verba = Verba(
 )
 ```
 
-#### Import from Files
+### Using Azure OpenAI
+
+The SDK supports Azure OpenAI for both embeddings and generation.
+
+#### Environment Variables
+
+```bash
+export OPENAI_API_KEY="your-azure-openai-api-key"
+export OPENAI_EMBED_BASE_URL="https://<resource>.openai.azure.com/openai/deployments/<embedding-deployment>"
+export OPENAI_BASE_URL="https://<resource>.openai.azure.com/openai/deployments/<chat-deployment>"
+export OPENAI_API_VERSION="2024-02-15-preview"  # Optional
+```
+
+#### Configuration
+
+```python
+import os
+from goldenverba import Verba
+
+verba = Verba(deployment="Custom", weaviate_url="localhost", port="8080")
+
+# Configure Azure OpenAI for embeddings and generation
+verba.configure(
+    embedder="OpenAI",
+    generator="OpenAI",
+    embedder_config={
+        "URL": os.getenv("OPENAI_EMBED_BASE_URL"),
+        "Model": "text-embedding-3-small",
+        "API Version": os.getenv("OPENAI_API_VERSION", "2024-02-15-preview"),
+    },
+    generator_config={
+        "URL": os.getenv("OPENAI_BASE_URL"),
+        "Model": "gpt-4o",  # Your Azure deployment name
+        "API Version": os.getenv("OPENAI_API_VERSION", "2024-02-15-preview"),
+    },
+)
+
+# Now add documents and chat
+verba.add_document(content="Hello world", title="Test")
+response = verba.chat("What is in the document?")
+print(response.answer)
+```
+
+### Import Documents
+
+#### From Text Content
+
+```python
+doc = verba.add_document(
+    content="Your document content here...",
+    title="My Document",
+    labels=["documentation", "example"],
+    metadata="Additional metadata"
+)
+```
+
+#### From Files
 
 ```python
 # Import from file
@@ -508,34 +588,9 @@ doc = verba.add_document(
 )
 ```
 
-#### Custom Configuration
-
-```python
-# Configure RAG pipeline
-verba.configure(
-    reader="BasicReader",
-    chunker="SentenceChunker",
-    embedder="OpenAI",
-    generator="OpenAI",
-    chunker_config={"Units": 3, "Overlap": 1},
-    generator_config={"Model": "gpt-4o"}
-)
-```
-
-#### Streaming Chat
-
-```python
-# Stream response tokens
-print("Assistant: ", end="")
-for chunk in verba.chat("What is RAG?", stream=True):
-    print(chunk, end="", flush=True)
-print()
-```
-
 #### Batch Import
 
 ```python
-# Import multiple documents
 documents = [
     {"file_path": "doc1.pdf", "labels": ["legal"]},
     {"file_path": "doc2.md", "labels": ["technical"]},
@@ -546,7 +601,52 @@ results = verba.add_documents(documents)
 print(f"Imported {len(results)} documents")
 ```
 
-#### Document Management
+### RAG Pipeline Configuration
+
+```python
+# Configure RAG pipeline components
+verba.configure(
+    reader="BasicReader",
+    chunker="SentenceChunker",
+    embedder="OpenAI",
+    generator="OpenAI",
+    chunker_config={"Units": 3, "Overlap": 1},
+    embedder_config={"Model": "text-embedding-3-small"},
+    generator_config={"Model": "gpt-4o"}
+)
+
+# Check current configuration
+print(verba.get_config())
+```
+
+### Query and Chat
+
+#### Basic Query
+
+```python
+results = verba.query("What is Verba?", limit=5)
+for chunk in results.chunks:
+    print(f"[{chunk.score:.2f}] {chunk.content[:100]}...")
+```
+
+#### Chat with RAG
+
+```python
+response = verba.chat("Explain what Verba does")
+print(response.answer)
+print(f"Sources: {len(response.sources)} chunks")
+```
+
+#### Streaming Chat
+
+```python
+print("Assistant: ", end="")
+for chunk in verba.chat("What is RAG?", stream=True):
+    print(chunk, end="", flush=True)
+print()
+```
+
+### Document Management
 
 ```python
 # List documents
@@ -559,13 +659,14 @@ doc = verba.get_document(uuid="document-uuid")
 verba.delete_document(uuid="document-uuid")
 ```
 
-#### Context Manager
+### Context Manager
 
 ```python
 # Use as context manager for automatic cleanup
 with Verba() as verba:
     results = verba.query("What is RAG?")
     response = verba.chat("Explain RAG")
+# Connection automatically closed
 ```
 
 ### Available Components
@@ -582,7 +683,12 @@ print(verba.generators)   # Available generators
 
 ```python
 from goldenverba import Verba
-from goldenverba.sdk.exceptions import ConnectionError, ImportError
+from goldenverba.sdk.exceptions import (
+    ConnectionError,
+    ImportError,
+    QueryError,
+    GenerationError
+)
 
 try:
     verba = Verba()
@@ -592,6 +698,17 @@ except ConnectionError as e:
 except ImportError as e:
     print(f"Import failed: {e}")
 ```
+
+### Example Scripts
+
+See the `examples/` directory for complete working examples:
+
+- `quick_start.py` - Minimal example with Docker Weaviate
+- `basic_usage.py` - Core SDK features
+- `streaming_chat.py` - Streaming responses
+- `file_import.py` - Importing files and URLs
+- `batch_import.py` - Bulk document import
+- `configuration_example.py` - RAG pipeline configuration
 
 ## Open Source Contribution
 
@@ -635,7 +752,7 @@ You can learn more about Verba's architecture and implementation in its [technic
 
 - **Does Verba offer a API endpoint to use externally?**
 
-  - No, right now Verba does not offer any useful API endpoints to interact with the application. The current FastAPI setup is optimized for the internal communication between the frontend and backend. It is not recommended to use it as a API endpoint. There are plans to add user-friendly
+  - Yes! Verba now offers a Python SDK that allows you to programmatically interact with the application. See the [Python SDK Usage](#python-sdk-usage) section for details. For REST API access, the FastAPI server provides endpoints when running `verba start`.
 
 - **How to connect to your custom OpenAI Server?**
 

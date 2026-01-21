@@ -105,7 +105,11 @@ class OpenAIGenerator(Generator):
                 endpoint = f"{openai_url}/openai/deployments/{model}/chat/completions?api-version={api_version}"
         else:
             # Standard OpenAI format
-            endpoint = f"{openai_url}/chat/completions" if not openai_url.endswith("/chat/completions") else openai_url
+            endpoint = (
+                f"{openai_url}/chat/completions"
+                if not openai_url.endswith("/chat/completions")
+                else openai_url
+            )
 
         async with httpx.AsyncClient() as client:
             async with client.stream(
@@ -147,7 +151,9 @@ class OpenAIGenerator(Generator):
                                         "finish_reason": choice["finish_reason"],
                                     }
                             elif "error" in json_line:
-                                error_msg = json_line["error"].get("message", str(json_line["error"]))
+                                error_msg = json_line["error"].get(
+                                    "message", str(json_line["error"])
+                                )
                                 yield {
                                     "message": f"API Error: {error_msg}",
                                     "finish_reason": "error",
