@@ -38,6 +38,11 @@ verba.configure(
         "Model": "text-embedding-3-small",  # Use small embedding model
         "API Version": os.getenv("OPENAI_API_VERSION", "2024-02-15-preview"),
     },
+    generator_config={
+        "URL": os.getenv("OPENAI_BASE_URL", ""),  # Azure OpenAI endpoint for chat
+        "Model": os.getenv("OPENAI_MODEL", "gpt-4o"),  # Azure deployment name
+        "API Version": os.getenv("OPENAI_API_VERSION", "2024-02-15-preview"),
+    },
 )
 
 # Add a document

@@ -70,13 +70,14 @@ class OpenAIEmbedder(Embedding):
 
     async def vectorize(self, config: dict, content: List[str]) -> List[List[float]]:
         """Vectorize the input content using OpenAI's API."""
+
         # Handle both InputConfig objects and plain dicts (from JSON serialization)
         def get_config_value(key, default=None):
             val = config.get(key)
             if val is None:
                 return default
-            return val.value if hasattr(val, 'value') else val.get("value", default)
-        
+            return val.value if hasattr(val, "value") else val.get("value", default)
+
         model = get_config_value("Model", "text-embedding-ada-002")
         key_name = (
             "OPENAI_EMBED_API_KEY"
@@ -94,7 +95,9 @@ class OpenAIEmbedder(Embedding):
         base_url = get_environment(config, "URL", base_url_name, "No OpenAI URL found")
 
         # Get API version (for Azure OpenAI)
-        api_version = get_config_value("API Version", os.getenv("OPENAI_API_VERSION", "2024-02-15-preview"))
+        api_version = get_config_value(
+            "API Version", os.getenv("OPENAI_API_VERSION", "2024-02-15-preview")
+        )
 
         headers = {
             "Content-Type": "application/json",

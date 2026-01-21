@@ -238,10 +238,14 @@ class WeaviateManager:
         )
 
     async def connect(
-        self, deployment: str, weaviateURL: str, weaviateAPIKey: str, port: str = "8080", grpc_port: str | None = None
+        self,
+        deployment: str,
+        weaviateURL: str,
+        weaviateAPIKey: str,
+        port: str = "8080",
+        grpc_port: str | None = None,
     ) -> WeaviateAsyncClient:
         try:
-
             if deployment == "Weaviate":
                 if weaviateURL == "" and os.environ.get("WEAVIATE_URL_VERBA"):
                     weaviateURL = os.environ.get("WEAVIATE_URL_VERBA")
@@ -253,7 +257,9 @@ class WeaviateManager:
             elif deployment == "Local":
                 client = await self.connect_to_embedded()
             elif deployment == "Custom":
-                client = await self.connect_to_custom(weaviateURL, weaviateAPIKey, port, grpc_port)
+                client = await self.connect_to_custom(
+                    weaviateURL, weaviateAPIKey, port, grpc_port
+                )
             else:
                 raise Exception(f"Invalid deployment type: {deployment}")
 
@@ -282,7 +288,6 @@ class WeaviateManager:
     ### Metadata
 
     async def get_metadata(self, client: WeaviateAsyncClient):
-
         # Node Information
         nodes = await client.cluster.nodes(output="verbose")
         node_payload = {"node_count": 0, "weaviate_version": "", "nodes": []}
@@ -615,9 +620,7 @@ class WeaviateManager:
     async def get_chunks(
         self, client: WeaviateAsyncClient, uuid: str, page: int, pageSize: int
     ) -> list[dict]:
-
         if await self.verify_collection(client, self.document_collection_name):
-
             offset = pageSize * (page - 1)
 
             document = await self.get_document(client, uuid, properties=["meta"])
@@ -646,7 +649,6 @@ class WeaviateManager:
     async def get_vectors(
         self, client: WeaviateAsyncClient, uuid: str, showAll: bool
     ) -> dict:
-
         document = await self.get_document(client, uuid, properties=["meta", "title"])
 
         if document is None:
@@ -1206,12 +1208,9 @@ class RetrieverManager:
             if retriever not in self.retrievers:
                 raise Exception(f"Retriever {retriever} not found")
 
-            embedder_model = (
-                rag_config["Embedder"]
-                ["components"][rag_config["Embedder"]["selected"]]
-                ["config"]["Model"]
-                ["value"]
-            )
+            embedder_model = rag_config["Embedder"]["components"][
+                rag_config["Embedder"]["selected"]
+            ]["config"]["Model"]["value"]
             config = rag_config["Retriever"]["components"][retriever]["config"]
             documents, context = await self.retrievers[retriever].retrieve(
                 client,
@@ -1244,9 +1243,9 @@ class GeneratorManager:
         """
 
         generator = rag_config["Generator"]["selected"]
-        generator_config = (
-            rag_config["Generator"]["components"][rag_config["Generator"]["selected"]]["config"]
-        )
+        generator_config = rag_config["Generator"]["components"][
+            rag_config["Generator"]["selected"]
+        ]["config"]
 
         if generator not in self.generators:
             raise Exception(f"Generator {generator} not found")
