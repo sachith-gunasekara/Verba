@@ -253,6 +253,48 @@ You can also add a `OPENAI_BASE_URL` to use proxies such as LiteLLM (https://git
 ```
 OPENAI_BASE_URL=YOUR-OPENAI_BASE_URL
 ```
+
+### Azure OpenAI ✨ NEW
+
+> **Verba now supports Azure OpenAI!** You can use Azure-hosted OpenAI models for both embeddings and generation.
+
+To use Azure OpenAI, set the following environment variables:
+
+```bash
+# Required
+export OPENAI_API_KEY="your-azure-openai-api-key"
+
+# For embeddings
+export OPENAI_EMBED_BASE_URL="https://<resource>.openai.azure.com/openai/deployments/<embedding-deployment>"
+
+# For generation/chat
+export OPENAI_BASE_URL="https://<resource>.openai.azure.com/openai/deployments/<chat-deployment>"
+
+# Optional (defaults to 2024-02-15-preview)
+export OPENAI_API_VERSION="2024-02-15-preview"
+```
+
+The URL format follows Azure's pattern: `https://<resource-name>.openai.azure.com/openai/deployments/<deployment-name>`
+
+When using the Python SDK, you can also configure Azure OpenAI programmatically:
+
+```python
+verba.configure(
+    embedder="OpenAI",
+    generator="OpenAI",
+    embedder_config={
+        "URL": "https://myresource.openai.azure.com/openai/deployments/text-embedding-3-small",
+        "Model": "text-embedding-3-small",
+        "API Version": "2024-02-15-preview",
+    },
+    generator_config={
+        "URL": "https://myresource.openai.azure.com/openai/deployments/gpt-4o",
+        "Model": "gpt-4o",
+        "API Version": "2024-02-15-preview",
+    },
+)
+```
+
 ### OpenAI Embeddings
 
 To specify a different endpoint for your embeddings, set the `OPENAI_EMBED_API_KEY` and `OPENAI_EMBED_BASE_URL` environment variables.
@@ -514,49 +556,6 @@ verba = Verba(
     weaviate_url="https://my-cluster.weaviate.network",
     weaviate_key="my-api-key"
 )
-```
-
-### Using Azure OpenAI
-
-The SDK supports Azure OpenAI for both embeddings and generation.
-
-#### Environment Variables
-
-```bash
-export OPENAI_API_KEY="your-azure-openai-api-key"
-export OPENAI_EMBED_BASE_URL="https://<resource>.openai.azure.com/openai/deployments/<embedding-deployment>"
-export OPENAI_BASE_URL="https://<resource>.openai.azure.com/openai/deployments/<chat-deployment>"
-export OPENAI_API_VERSION="2024-02-15-preview"  # Optional
-```
-
-#### Configuration
-
-```python
-import os
-from goldenverba import Verba
-
-verba = Verba(deployment="Custom", weaviate_url="localhost", port="8080")
-
-# Configure Azure OpenAI for embeddings and generation
-verba.configure(
-    embedder="OpenAI",
-    generator="OpenAI",
-    embedder_config={
-        "URL": os.getenv("OPENAI_EMBED_BASE_URL"),
-        "Model": "text-embedding-3-small",
-        "API Version": os.getenv("OPENAI_API_VERSION", "2024-02-15-preview"),
-    },
-    generator_config={
-        "URL": os.getenv("OPENAI_BASE_URL"),
-        "Model": "gpt-4o",  # Your Azure deployment name
-        "API Version": os.getenv("OPENAI_API_VERSION", "2024-02-15-preview"),
-    },
-)
-
-# Now add documents and chat
-verba.add_document(content="Hello world", title="Test")
-response = verba.chat("What is in the document?")
-print(response.answer)
 ```
 
 ### Import Documents
