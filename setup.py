@@ -27,7 +27,7 @@ SDK_DEPS = [
     "beautifulsoup4==4.12.3",  # HTML parsing
     "langdetect==1.0.9",  # Language detection
     # Chunking
-    "langchain-text-splitters==0.2.2",
+    "langchain-text-splitters>=1.0.0",
     "spacy==3.7.5",
 ]
 
