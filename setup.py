@@ -4,9 +4,10 @@ from setuptools import find_packages, setup
 # Dependency Groups
 # =============================================================================
 
-# Core SDK dependencies - minimal set for programmatic usage
-# These are always installed
-CORE_DEPS = [
+# SDK dependencies - everything needed for programmatic usage
+# Includes: core, document processing, chunking
+SDK_DEPS = [
+    # Core
     "weaviate-client==4.9.6",
     "python-dotenv==1.0.0",
     "wasabi==1.1.2",
@@ -16,10 +17,7 @@ CORE_DEPS = [
     "aiohttp==3.9.5",
     "numpy<2.0",  # Pin numpy < 2.0 for spacy 3.7.5 compatibility
     "scikit-learn==1.5.1",  # For PCA on embeddings
-]
-
-# Document processing dependencies
-DOCUMENT_DEPS = [
+    # Document processing
     "openpyxl==3.1.5",  # Excel files
     "xlrd==2.0.2",  # Excel files
     "pypdf==4.3.1",  # PDF files
@@ -28,15 +26,12 @@ DOCUMENT_DEPS = [
     "aiofiles==24.1.0",  # Async file operations
     "beautifulsoup4==4.12.3",  # HTML parsing
     "langdetect==1.0.9",  # Language detection
-]
-
-# Chunking dependencies (spacy, langchain)
-CHUNKING_DEPS = [
+    # Chunking
     "langchain-text-splitters==0.2.2",
     "spacy==3.7.5",
 ]
 
-# Web server dependencies (FastAPI, CLI, etc.)
+# Web server dependencies (FastAPI, CLI, etc.) - for web UI only
 SERVER_DEPS = [
     "fastapi==0.111.1",
     "uvicorn[standard]==0.29.0",
@@ -44,13 +39,10 @@ SERVER_DEPS = [
     "click==8.1.7",
 ]
 
-# Audio transcription via AssemblyAI
+# Audio transcription via AssemblyAI (optional)
 ASSEMBLYAI_DEPS = [
     "assemblyai==0.33.0",
 ]
-
-# All non-core dependencies combined
-ALL_EXTRAS = DOCUMENT_DEPS + CHUNKING_DEPS + SERVER_DEPS + ASSEMBLYAI_DEPS
 
 # =============================================================================
 # Setup Configuration
@@ -79,23 +71,14 @@ setup(
         "Programming Language :: Python :: 3.12",
     ],
     include_package_data=True,
-    # Base install = Core SDK only (lightweight)
-    # Use extras for additional features
-    install_requires=CORE_DEPS,
+    # Base install = SDK (everything needed for programmatic usage)
+    install_requires=SDK_DEPS,
     extras_require={
-        # SDK with document processing (PDF, Word, Excel, etc.)
-        "documents": DOCUMENT_DEPS,
-        # Advanced chunking (spacy, langchain)
-        "chunking": CHUNKING_DEPS,
-        # Web server (FastAPI, uvicorn, gunicorn, CLI)
-        "server": SERVER_DEPS,
+        # Full installation with web server - for web UI
+        # Install with: pip install goldenverba[full]
+        "full": SERVER_DEPS + ASSEMBLYAI_DEPS,
         # Audio transcription via AssemblyAI
         "assemblyai": ASSEMBLYAI_DEPS,
-        # Full installation - everything included
-        # This is recommended for the web UI experience
-        "full": ALL_EXTRAS,
-        # Alias for full (backward compatibility)
-        "all": ALL_EXTRAS,
         # Development dependencies
         "dev": ["pytest", "wheel", "twine", "black>=23.7.0", "setuptools"],
         # Google Cloud / Vertex AI

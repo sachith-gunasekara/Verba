@@ -134,7 +134,7 @@ You have three deployment options for Verba:
 pip install goldenverba[full]
 ```
 
-- Install via pip (SDK only - lightweight)
+- Install via pip (SDK only)
 
 ```
 pip install goldenverba
@@ -144,7 +144,6 @@ pip install goldenverba
 
 ```
 git clone https://github.com/weaviate/Verba
-
 pip install -e ".[full]"
 ```
 
@@ -497,9 +496,9 @@ Verba can be used directly in your Python applications without running the web s
 
 ### Installation Options
 
-#### SDK Only (Lightweight)
+#### SDK (Programmatic Usage)
 
-Minimal installation for programmatic usage - excludes web server (FastAPI) and spacy:
+For using Verba as a Python library in your applications:
 
 ```bash
 # From PyPI
@@ -509,9 +508,11 @@ pip install goldenverba
 pip install git+https://github.com/weaviate/Verba.git
 ```
 
+Includes everything needed for document ingestion, querying, and chat - just no web server.
+
 #### Full Installation (Web UI)
 
-Includes web server, all document processors, and advanced chunking:
+For running the Verba web interface:
 
 ```bash
 # From PyPI
@@ -521,38 +522,23 @@ pip install goldenverba[full]
 pip install "git+https://github.com/weaviate/Verba.git#egg=goldenverba[full]"
 ```
 
-#### Custom Installation
+Adds FastAPI, uvicorn, and the `verba start` CLI command.
 
-Mix and match features as needed:
+#### Optional Extras
 
 ```bash
-# SDK + document processing (PDF, Word, Excel)
-pip install goldenverba[documents]
+# Add HuggingFace embedding models
+pip install goldenverba[huggingface]
 
-# SDK + web server only
-pip install goldenverba[server]
+# Add Google Vertex AI
+pip install goldenverba[google]
 
-# SDK + advanced chunking (spacy, langchain)
-pip install goldenverba[chunking]
+# Add audio transcription (AssemblyAI)
+pip install goldenverba[assemblyai]
 
-# Combine multiple extras
-pip install goldenverba[documents,chunking]
-
-# Everything + HuggingFace models
+# Combine extras
 pip install goldenverba[full,huggingface]
 ```
-
-| Extra | Description |
-|-------|-------------|
-| `[full]` | All features (web UI, documents, chunking, audio) |
-| `[server]` | Web server (FastAPI, uvicorn, CLI) |
-| `[documents]` | Document processing (PDF, Word, Excel, HTML) |
-| `[chunking]` | Advanced chunking (spacy, langchain) |
-| `[assemblyai]` | Audio transcription |
-| `[huggingface]` | Local embedding models |
-| `[google]` | Google Vertex AI |
-
-> **Note:** The base SDK installation supports text content import and basic chunking. For the full Verba web UI experience, use `pip install goldenverba[full]`.
 
 ### Quick Start
 
