@@ -38,6 +38,46 @@ def run_sync(coro: Coroutine[Any, Any, T]) -> T:
         return _loop_storage.loop.run_until_complete(coro)
 
 
+def cleanup_event_loop() -> None:
+    """
+    Clean up and close the thread-local event loop.
+
+    This should be called when all async operations are complete and
+    you want to ensure all underlying connections are properly closed.
+    Call this after closing any async clients to release resources.
+    """
+    if not _loop_storage.loop.is_closed():
+        loop = _loop_storage.loop
+        try:
+            # Cancel all pending tasks
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+
+            # Give cancelled tasks a chance to run their cleanup
+            if pending:
+                loop.run_until_complete(
+                    asyncio.gather(*pending, return_exceptions=True)
+                )
+
+            # Shutdown async generators
+            loop.run_until_complete(loop.shutdown_asyncgens())
+
+            # Shutdown default executor (Python 3.9+)
+            if hasattr(loop, "shutdown_default_executor"):
+                loop.run_until_complete(loop.shutdown_default_executor())
+
+        except Exception:
+            pass  # Best effort cleanup
+        finally:
+            try:
+                loop.close()
+            except Exception:
+                pass
+            # Clear the thread-local reference
+            delattr(_loop_storage, "loop")
+
+
 class AsyncToSyncIterator:
     """Convert an async generator to a synchronous iterator."""
 

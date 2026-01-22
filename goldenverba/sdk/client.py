@@ -17,10 +17,13 @@ Example (async):
 """
 
 import asyncio
+import atexit
 import base64
 import copy
 import json
 import uuid
+import warnings
+import weakref
 from pathlib import Path
 from typing import (
     Any,
@@ -56,8 +59,30 @@ from goldenverba.sdk.exceptions import (
     QueryError,
     GenerationError,
 )
-from goldenverba.sdk.sync import run_sync, AsyncToSyncIterator
+from goldenverba.sdk.sync import run_sync, AsyncToSyncIterator, cleanup_event_loop
 from goldenverba.sdk.config import ConfigManager
+
+
+# Global registry for cleanup on exit - uses weak references to avoid preventing GC
+_active_clients: weakref.WeakSet["Verba"] = weakref.WeakSet()
+
+
+def _atexit_cleanup():
+    """Clean up any remaining active clients on program exit."""
+    for client in list(_active_clients):
+        try:
+            if client._client is not None and not client._closed:
+                # Try sync close - safe even if event loop is closed
+                try:
+                    client.close()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+
+# Register the atexit handler
+atexit.register(_atexit_cleanup)
 
 
 class CallbackLogger(LoggerManager):
@@ -132,6 +157,10 @@ class Verba:
         self._grpc_port = grpc_port
         self._rag_config = None
         self._config_manager = None
+        self._closed = False  # Track if close() has been called
+
+        # Register for cleanup on exit
+        _active_clients.add(self)
 
         if auto_connect:
             # Check if we're in an async context
@@ -157,6 +186,7 @@ class Verba:
 
             self._rag_config = await self._manager.load_rag_config(self._client)
             self._config_manager = ConfigManager(self._rag_config)
+            self._closed = False  # Reset closed state on reconnect
         except Exception as e:
             if isinstance(e, ConnectionError):
                 raise
@@ -168,15 +198,27 @@ class Verba:
 
     async def aclose(self) -> None:
         """Close the connection and clean up resources (async)."""
+        if self._closed:
+            return  # Already closed
+
         if self._client:
-            await self._manager.disconnect(self._client)
-            self._client = None
-            self._rag_config = None
-            self._config_manager = None
+            try:
+                await self._manager.disconnect(self._client)
+            except Exception:
+                pass  # Best effort cleanup
+            finally:
+                self._client = None
+                self._rag_config = None
+                self._config_manager = None
+                self._closed = True
 
     def close(self) -> None:
         """Close the connection and clean up resources (sync)."""
+        if self._closed:
+            return  # Already closed
         run_sync(self.aclose())
+        # Clean up the thread-local event loop to release all connections
+        cleanup_event_loop()
 
     def __enter__(self) -> "Verba":
         """Context manager entry."""
@@ -197,6 +239,32 @@ class Verba:
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async context manager exit."""
         await self.aclose()
+
+    def __del__(self) -> None:
+        """Destructor - attempt cleanup if not already closed."""
+        if hasattr(self, "_closed") and not self._closed and hasattr(self, "_client"):
+            if self._client is not None:
+                # Issue a warning since user forgot to call close()
+                warnings.warn(
+                    "Verba client was not properly closed. "
+                    "Use 'with Verba() as verba:' or call 'verba.close()' explicitly.",
+                    ResourceWarning,
+                    stacklevel=2,
+                )
+                # Attempt cleanup - best effort
+                try:
+                    # Try to close synchronously if possible
+                    try:
+                        asyncio.get_running_loop()
+                        # In async context, can't do much here
+                    except RuntimeError:
+                        # Not in async context - attempt sync close
+                        try:
+                            self.close()
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
 
     # =========================================================================
     # Document Operations
