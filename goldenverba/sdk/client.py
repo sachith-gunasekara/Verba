@@ -360,9 +360,9 @@ class Verba:
             )
 
         # Get chunk count
-        embedder_name = rag_config["Embedder"].selected
-        embedder_config = rag_config["Embedder"].components[embedder_name].config
-        embedder_model = embedder_config["Model"].value
+        embedder_name = rag_config["Embedder"]["selected"]
+        embedder_config = rag_config["Embedder"]["components"][embedder_name]["config"]
+        embedder_model = embedder_config["Model"]["value"]
 
         try:
             chunk_count = await self._manager.weaviate_manager.get_chunk_count(
