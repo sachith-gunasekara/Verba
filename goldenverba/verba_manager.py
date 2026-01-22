@@ -250,6 +250,7 @@ class VerbaManager:
                         .components[fileConfig.rag_config["Embedder"].selected]
                         .config["Model"]
                         .value,
+                        uuid=currentFileConfig.fileID,
                     )
                 )
                 await ingesting_task

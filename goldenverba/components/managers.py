@@ -410,7 +410,11 @@ class WeaviateManager:
     ### Import Handling
 
     async def import_document(
-        self, client: WeaviateAsyncClient, document: Document, embedder: str
+        self,
+        client: WeaviateAsyncClient,
+        document: Document,
+        embedder: str,
+        uuid: str = None,
     ):
         if await self.verify_collection(
             client, self.document_collection_name
@@ -420,7 +424,12 @@ class WeaviateManager:
 
             ### Import Document
             document_obj = Document.to_json(document)
-            doc_uuid = await document_collection.data.insert(document_obj)
+            if uuid:
+                doc_uuid = await document_collection.data.insert(
+                    document_obj, uuid=uuid
+                )
+            else:
+                doc_uuid = await document_collection.data.insert(document_obj)
 
             chunk_ids = []
 

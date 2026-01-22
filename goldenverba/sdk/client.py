@@ -16,6 +16,7 @@ Example (async):
     >>> results = await verba.aquery("What is hello?")
 """
 
+import asyncio
 import base64
 import copy
 import json
@@ -32,8 +33,6 @@ from typing import (
     Optional,
     Union,
 )
-
-import asyncio
 
 from goldenverba.verba_manager import VerbaManager
 from goldenverba.server.types import (
@@ -332,6 +331,7 @@ class Verba:
             raise ImportError(f"Failed to import document: {str(e)}") from e
 
         # Retrieve the imported document
+        # The document should now be stored with file_id as its UUID
         doc_data = await self._manager.weaviate_manager.get_document(
             self._client,
             file_id,
@@ -346,10 +346,23 @@ class Verba:
             ],
         )
 
+        # Handle return type - get_document returns dict or None (despite type annotation)
+        if isinstance(doc_data, list) and len(doc_data) > 0:
+            doc_data = doc_data[0]
+        elif not isinstance(doc_data, dict):
+            doc_data = None
+
+        # If document not found, this indicates a real problem
+        if doc_data is None:
+            raise ImportError(
+                f"Document '{filename}' was imported but could not be retrieved with ID '{file_id}'. "
+                f"This may indicate a UUID mismatch or timing issue."
+            )
+
         # Get chunk count
-        embedder_name = rag_config["Embedder"]["selected"]
-        embedder_config = rag_config["Embedder"]["components"][embedder_name]["config"]
-        embedder_model = embedder_config["Model"]["value"]
+        embedder_name = rag_config["Embedder"].selected
+        embedder_config = rag_config["Embedder"].components[embedder_name].config
+        embedder_model = embedder_config["Model"].value
 
         try:
             chunk_count = await self._manager.weaviate_manager.get_chunk_count(
@@ -358,7 +371,13 @@ class Verba:
         except Exception:
             chunk_count = 0
 
-        return Document.from_dict(doc_data, chunk_count=chunk_count)
+        try:
+            return Document.from_dict(doc_data, chunk_count=chunk_count)
+        except (AttributeError, TypeError) as e:
+            # Handle case where doc_data is None or malformed
+            raise ImportError(
+                f"Document imported but failed to create Document object: {str(e)}"
+            ) from e
 
     def add_document(
         self,
