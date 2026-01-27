@@ -717,8 +717,8 @@ class VerbaManager:
         labels: list[str] = [],
         document_uuids: list[str] = [],
     ):
-        retriever = rag_config["Retriever"].selected
-        embedder = rag_config["Embedder"].selected
+        retriever = rag_config["Retriever"]["selected"]
+        embedder = rag_config["Embedder"]["selected"]
 
         await self.weaviate_manager.add_suggestion(client, query)
 
