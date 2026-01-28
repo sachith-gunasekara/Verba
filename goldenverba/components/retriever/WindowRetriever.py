@@ -163,6 +163,7 @@ class WindowRetriever(Retriever):
                     "uuid": str(chunk["uuid"]),
                     "score": chunk["score"],
                     "chunk_id": chunk["chunk_id"],
+                    "content": chunk["content"],
                     "embedder": embedder,
                 }
                 for chunk in doc_map[doc]["chunks"]

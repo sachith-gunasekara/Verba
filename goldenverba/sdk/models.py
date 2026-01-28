@@ -44,17 +44,31 @@ class Chunk:
     score: float
     document_uuid: str
     document_title: str
+    labels: List[str]
+    metadata: str
+    embedder: str
 
     @classmethod
     def from_dict(cls, data: dict, score: float = 0.0) -> "Chunk":
-        """Create Chunk from dictionary."""
+        """Create Chunk from dictionary (from retrieval or Weaviate response)."""
+        raw_chunk_id = data.get("chunk_id", 0)
+        if isinstance(raw_chunk_id, str):
+            try:
+                chunk_id = int(raw_chunk_id)
+            except (ValueError, TypeError):
+                chunk_id = 0
+        else:
+            chunk_id = int(raw_chunk_id) if raw_chunk_id is not None else 0
         return cls(
             uuid=data.get("uuid", ""),
             content=data.get("content", ""),
-            chunk_id=data.get("chunk_id", 0),
+            chunk_id=chunk_id,
             score=score,
             document_uuid=data.get("doc_uuid", ""),
             document_title=data.get("title", ""),
+            labels=data.get("labels", []) or [],
+            metadata=data.get("metadata", ""),
+            embedder=data.get("embedder", ""),
         )
 
 

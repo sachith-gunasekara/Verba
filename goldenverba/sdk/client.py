@@ -785,7 +785,7 @@ class Verba:
                 document_ids or [],
             )
 
-            # Flatten documents structure
+            # Flatten documents structure and pass document-level fields to each chunk
             flattened_chunks = []
             for doc in documents:
                 if isinstance(doc, dict) and "chunks" in doc:
@@ -793,8 +793,11 @@ class Verba:
                         chunk_with_doc = chunk.copy()
                         chunk_with_doc["doc_uuid"] = doc.get("uuid", "")
                         chunk_with_doc["title"] = doc.get("title", "")
+                        chunk_with_doc["metadata"] = doc.get("metadata", "")
                         if "content" not in chunk_with_doc:
                             chunk_with_doc["content"] = ""
+                        if "labels" not in chunk_with_doc and "labels" in doc:
+                            chunk_with_doc["labels"] = doc.get("labels", [])
                         flattened_chunks.append(chunk_with_doc)
                 else:
                     flattened_chunks.append(doc)
