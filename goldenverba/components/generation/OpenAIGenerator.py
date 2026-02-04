@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from goldenverba.components.interfaces import Generator
 from goldenverba.components.types import InputConfig
-from goldenverba.components.util import get_environment, get_token
+from goldenverba.components.util import get_environment, get_token, get_config_value
 from typing import List
 import httpx
 import json
@@ -41,13 +41,21 @@ class OpenAIGenerator(Generator):
                 description="You can set your OpenAI API Key here or set it as environment variable `OPENAI_API_KEY`",
                 values=[],
             )
-        if os.getenv("OPENAI_BASE_URL") is None:
-            self.config["URL"] = InputConfig(
-                type="text",
-                value="https://api.openai.com/v1",
-                description="You can change the Base URL here if needed",
-                values=[],
-            )
+        # Always add URL config for Azure OpenAI support
+        self.config["URL"] = InputConfig(
+            type="text",
+            value=base_url,
+            description="OpenAI API Base URL (e.g., https://api.openai.com/v1 or Azure OpenAI endpoint)",
+            values=[],
+        )
+        # Add API version for Azure OpenAI support
+        api_version = os.getenv("OPENAI_API_VERSION", "2024-02-15-preview")
+        self.config["API Version"] = InputConfig(
+            type="text",
+            value=api_version,
+            description="API version for Azure OpenAI (e.g., 2024-02-15-preview)",
+            values=[],
+        )
 
     async def generate_stream(
         self,
@@ -56,13 +64,16 @@ class OpenAIGenerator(Generator):
         context: str,
         conversation: list[dict] = [],
     ):
-        system_message = config.get("System Message").value
-        model = config.get("Model", {"value": "gpt-3.5-turbo"}).value
+        system_message = get_config_value(config, "System Message", "")
+        model = get_config_value(config, "Model", "gpt-3.5-turbo")
         openai_key = get_environment(
             config, "API Key", "OPENAI_API_KEY", "No OpenAI API Key found"
         )
         openai_url = get_environment(
             config, "URL", "OPENAI_BASE_URL", "https://api.openai.com/v1"
+        )
+        api_version = get_config_value(
+            config, "API Version", os.getenv("OPENAI_API_VERSION", "2024-02-15-preview")
         )
 
         messages = self.prepare_messages(query, context, conversation, system_message)
@@ -77,30 +88,78 @@ class OpenAIGenerator(Generator):
             "stream": True,
         }
 
+        # Build endpoint URL - Azure OpenAI uses different format
+        # Azure: https://<resource>.openai.azure.com/openai/deployments/<deployment>/chat/completions?api-version=<version>
+        # OpenAI: https://api.openai.com/v1/chat/completions
+        if "openai.azure.com" in openai_url or "azure.com" in openai_url:
+            openai_url = openai_url.rstrip("/")
+            if "/chat/completions" in openai_url:
+                if "?" in openai_url:
+                    endpoint = f"{openai_url}&api-version={api_version}"
+                else:
+                    endpoint = f"{openai_url}?api-version={api_version}"
+            elif "/openai/deployments/" in openai_url:
+                endpoint = f"{openai_url}/chat/completions?api-version={api_version}"
+            else:
+                # URL is just base, add full path with model as deployment name
+                endpoint = f"{openai_url}/openai/deployments/{model}/chat/completions?api-version={api_version}"
+        else:
+            # Standard OpenAI format
+            endpoint = (
+                f"{openai_url}/chat/completions"
+                if not openai_url.endswith("/chat/completions")
+                else openai_url
+            )
+
         async with httpx.AsyncClient() as client:
             async with client.stream(
                 "POST",
-                f"{openai_url}/chat/completions",
+                endpoint,
                 json=data,
                 headers=headers,
                 timeout=None,
             ) as response:
+                # Check for HTTP errors
+                if response.status_code != 200:
+                    error_body = await response.aread()
+                    error_msg = error_body.decode("utf-8", errors="replace")
+                    msg.fail(f"OpenAI API error ({response.status_code}): {error_msg}")
+                    yield {
+                        "message": f"API Error ({response.status_code}): {error_msg[:200]}",
+                        "finish_reason": "error",
+                    }
+                    return
+
                 async for line in response.aiter_lines():
+                    if not line:
+                        continue
                     if line.startswith("data: "):
                         if line.strip() == "data: [DONE]":
                             break
-                        json_line = json.loads(line[6:])
-                        choice = json_line["choices"][0]
-                        if "delta" in choice and "content" in choice["delta"]:
-                            yield {
-                                "message": choice["delta"]["content"],
-                                "finish_reason": choice.get("finish_reason"),
-                            }
-                        elif "finish_reason" in choice:
-                            yield {
-                                "message": "",
-                                "finish_reason": choice["finish_reason"],
-                            }
+                        try:
+                            json_line = json.loads(line[6:])
+                            if "choices" in json_line and len(json_line["choices"]) > 0:
+                                choice = json_line["choices"][0]
+                                if "delta" in choice and "content" in choice["delta"]:
+                                    yield {
+                                        "message": choice["delta"]["content"],
+                                        "finish_reason": choice.get("finish_reason"),
+                                    }
+                                elif "finish_reason" in choice:
+                                    yield {
+                                        "message": "",
+                                        "finish_reason": choice["finish_reason"],
+                                    }
+                            elif "error" in json_line:
+                                error_msg = json_line["error"].get(
+                                    "message", str(json_line["error"])
+                                )
+                                yield {
+                                    "message": f"API Error: {error_msg}",
+                                    "finish_reason": "error",
+                                }
+                        except json.JSONDecodeError as e:
+                            msg.warn(f"Failed to parse streaming response: {line}")
 
     def prepare_messages(
         self, query: str, context: str, conversation: list[dict], system_message: str

@@ -35,8 +35,15 @@ class OllamaGenerator(Generator):
         context: str,
         conversation: List[Dict] = [],
     ) -> AsyncGenerator[Dict, None]:
-        model = config.get("Model").value
-        system_message = config.get("System Message").value
+        # Handle both InputConfig objects and plain dicts
+        def get_val(key, default=None):
+            val = config.get(key)
+            if val is None:
+                return default
+            return val.value if hasattr(val, 'value') else val.get("value", default) if isinstance(val, dict) else val
+        
+        model = get_val("Model", "llama2")
+        system_message = get_val("System Message", "")
 
         if not self.url:
             yield self._error_response("Missing Ollama URL")

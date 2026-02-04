@@ -51,20 +51,34 @@ class OpenAIEmbedder(Embedding):
                 description="OpenAI API Key (or set OPENAI_EMBED_API_KEY or OPENAI_API_KEY env var)",
                 values=[],
             )
-        if (
-            os.getenv("OPENAI_EMBED_BASE_URL") is None
-            and os.getenv("OPENAI_BASE_URL") is None
-        ):
-            self.config["URL"] = InputConfig(
-                type="text",
-                value=base_url,
-                description="OpenAI API Base URL (if different from default)",
-                values=[],
-            )
+        # Always add URL config to allow runtime overrides (e.g., for Azure OpenAI)
+        # If env var is set, use it as default; otherwise use default OpenAI URL
+        self.config["URL"] = InputConfig(
+            type="text",
+            value=base_url,
+            description="OpenAI API Base URL (e.g., https://api.openai.com/v1 or Azure OpenAI endpoint)",
+            values=[],
+        )
+        # Add API version for Azure OpenAI support
+        api_version = os.getenv("OPENAI_API_VERSION", "2024-02-15-preview")
+        self.config["API Version"] = InputConfig(
+            type="text",
+            value=api_version,
+            description="API version for Azure OpenAI (e.g., 2024-02-15-preview)",
+            values=[],
+        )
 
     async def vectorize(self, config: dict, content: List[str]) -> List[List[float]]:
         """Vectorize the input content using OpenAI's API."""
-        model = config.get("Model", {"value": "text-embedding-ada-002"}).value
+
+        # Handle both InputConfig objects and plain dicts (from JSON serialization)
+        def get_config_value(key, default=None):
+            val = config.get(key)
+            if val is None:
+                return default
+            return val.value if hasattr(val, "value") else val.get("value", default)
+
+        model = get_config_value("Model", "text-embedding-ada-002")
         key_name = (
             "OPENAI_EMBED_API_KEY"
             if get_token("OPENAI_EMBED_API_KEY")
@@ -80,6 +94,11 @@ class OpenAIEmbedder(Embedding):
         )
         base_url = get_environment(config, "URL", base_url_name, "No OpenAI URL found")
 
+        # Get API version (for Azure OpenAI)
+        api_version = get_config_value(
+            "API Version", os.getenv("OPENAI_API_VERSION", "2024-02-15-preview")
+        )
+
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",
@@ -90,10 +109,56 @@ class OpenAIEmbedder(Embedding):
         payload_bytes = json.dumps(payload).encode("utf-8")
         payload_io = io.BytesIO(payload_bytes)
 
+        # Build endpoint URL - Azure OpenAI uses different format
+        # Azure: https://<resource>.openai.azure.com/openai/deployments/<deployment>/embeddings?api-version=<version>
+        # OpenAI: https://api.openai.com/v1/embeddings
+        if "openai.azure.com" in base_url or "azure.com" in base_url:
+            # Azure OpenAI format
+            base_url = base_url.rstrip("/")
+
+            # Check if URL already includes the full path
+            if "/embeddings" in base_url:
+                # /embeddings already present, just add/update api-version
+                if "?" in base_url:
+                    # Replace existing api-version or add it
+                    import re
+
+                    if "api-version=" in base_url:
+                        endpoint = re.sub(
+                            r"api-version=[^&]*", f"api-version={api_version}", base_url
+                        )
+                    else:
+                        endpoint = f"{base_url}&api-version={api_version}"
+                else:
+                    endpoint = f"{base_url}?api-version={api_version}"
+            elif "/openai/deployments/" in base_url:
+                # URL has /openai/deployments/<deployment>, add /embeddings
+                endpoint = f"{base_url}/embeddings?api-version={api_version}"
+            else:
+                # URL is just the base (e.g., https://<resource>.openai.azure.com)
+                # Need to construct: /openai/deployments/<model>/embeddings
+                # Use the model name as deployment name (common Azure pattern)
+                # Remove "text-embedding-" prefix if present for deployment name
+                deployment_name = model
+                if model.startswith("text-embedding-"):
+                    # For Azure, deployment might be named differently
+                    # Try using the full model name or a shortened version
+                    deployment_name = model
+
+                endpoint = f"{base_url}/openai/deployments/{deployment_name}/embeddings?api-version={api_version}"
+        else:
+            # Standard OpenAI format
+            if base_url.endswith("/embeddings"):
+                endpoint = base_url
+            elif base_url.endswith("/v1"):
+                endpoint = f"{base_url}/embeddings"
+            else:
+                endpoint = f"{base_url.rstrip('/')}/embeddings"
+
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.post(
-                    f"{base_url}/embeddings",
+                    endpoint,
                     headers=headers,
                     data=payload_io,
                     timeout=30,

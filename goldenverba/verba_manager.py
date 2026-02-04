@@ -53,11 +53,17 @@ class VerbaManager:
         self.verify_installed_libraries()
         self.verify_variables()
 
-    async def connect(self, credentials: Credentials, port: str = "8080"):
+    async def connect(
+        self, credentials: Credentials, port: str = "8080", grpc_port: str | None = None
+    ):
         start_time = asyncio.get_event_loop().time()
         try:
             client = await self.weaviate_manager.connect(
-                credentials.deployment, credentials.url, credentials.key, port
+                credentials.deployment,
+                credentials.url,
+                credentials.key,
+                port,
+                grpc_port,
             )
         except Exception as e:
             raise e
@@ -244,6 +250,7 @@ class VerbaManager:
                         .components[fileConfig.rag_config["Embedder"].selected]
                         .config["Model"]
                         .value,
+                        uuid=currentFileConfig.fileID,
                     )
                 )
                 await ingesting_task
@@ -710,8 +717,8 @@ class VerbaManager:
         labels: list[str] = [],
         document_uuids: list[str] = [],
     ):
-        retriever = rag_config["Retriever"].selected
-        embedder = rag_config["Embedder"].selected
+        retriever = rag_config["Retriever"]["selected"]
+        embedder = rag_config["Embedder"]["selected"]
 
         await self.weaviate_manager.add_suggestion(client, query)
 
@@ -738,7 +745,6 @@ class VerbaManager:
         context: str,
         conversation: list[dict],
     ):
-
         full_text = ""
         async for result in self.generator_manager.generate_stream(
             rag_config, query, context, conversation
@@ -771,7 +777,6 @@ class ClientManager:
     async def connect(
         self, credentials: Credentials, port: str = "8080"
     ) -> WeaviateAsyncClient:
-
         _credentials = credentials
 
         if not _credentials.url and not _credentials.key:

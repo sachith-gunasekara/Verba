@@ -189,17 +189,29 @@ class WeaviateManager:
             ),
         )
 
-    async def connect_to_custom(self, host, w_key, port):
+    async def connect_to_custom(self, host, w_key, port, grpc_port=None):
         # Extract the port from the host
         msg.info(f"Connecting to Weaviate Custom")
 
         if host is None or host == "":
             raise Exception("No Host URL provided")
 
+        # Default gRPC port to 50051 if not specified
+        if grpc_port is None:
+            grpc_port = 50051
+
+        # Ensure HTTP and gRPC ports are different
+        if int(port) == int(grpc_port):
+            raise Exception(
+                f"HTTP port ({port}) and gRPC port ({grpc_port}) must be different. "
+                f"Use port=8080 for HTTP and grpc_port=50051 for gRPC."
+            )
+
         if w_key is None or w_key == "":
             return weaviate.use_async_with_local(
                 host=host,
                 port=int(port),
+                grpc_port=int(grpc_port),
                 skip_init_checks=True,
                 additional_config=AdditionalConfig(
                     timeout=Timeout(init=60, query=300, insert=300)
@@ -209,6 +221,7 @@ class WeaviateManager:
             return weaviate.use_async_with_local(
                 host=host,
                 port=int(port),
+                grpc_port=int(grpc_port),
                 skip_init_checks=True,
                 auth_credentials=AuthApiKey(w_key),
                 additional_config=AdditionalConfig(
@@ -225,10 +238,14 @@ class WeaviateManager:
         )
 
     async def connect(
-        self, deployment: str, weaviateURL: str, weaviateAPIKey: str, port: str = "8080"
+        self,
+        deployment: str,
+        weaviateURL: str,
+        weaviateAPIKey: str,
+        port: str = "8080",
+        grpc_port: str | None = None,
     ) -> WeaviateAsyncClient:
         try:
-
             if deployment == "Weaviate":
                 if weaviateURL == "" and os.environ.get("WEAVIATE_URL_VERBA"):
                     weaviateURL = os.environ.get("WEAVIATE_URL_VERBA")
@@ -240,7 +257,9 @@ class WeaviateManager:
             elif deployment == "Local":
                 client = await self.connect_to_embedded()
             elif deployment == "Custom":
-                client = await self.connect_to_custom(weaviateURL, weaviateAPIKey, port)
+                client = await self.connect_to_custom(
+                    weaviateURL, weaviateAPIKey, port, grpc_port
+                )
             else:
                 raise Exception(f"Invalid deployment type: {deployment}")
 
@@ -269,7 +288,6 @@ class WeaviateManager:
     ### Metadata
 
     async def get_metadata(self, client: WeaviateAsyncClient):
-
         # Node Information
         nodes = await client.cluster.nodes(output="verbose")
         node_payload = {"node_count": 0, "weaviate_version": "", "nodes": []}
@@ -392,7 +410,11 @@ class WeaviateManager:
     ### Import Handling
 
     async def import_document(
-        self, client: WeaviateAsyncClient, document: Document, embedder: str
+        self,
+        client: WeaviateAsyncClient,
+        document: Document,
+        embedder: str,
+        uuid: str = None,
     ):
         if await self.verify_collection(
             client, self.document_collection_name
@@ -402,7 +424,12 @@ class WeaviateManager:
 
             ### Import Document
             document_obj = Document.to_json(document)
-            doc_uuid = await document_collection.data.insert(document_obj)
+            if uuid:
+                doc_uuid = await document_collection.data.insert(
+                    document_obj, uuid=uuid
+                )
+            else:
+                doc_uuid = await document_collection.data.insert(document_obj)
 
             chunk_ids = []
 
@@ -602,9 +629,7 @@ class WeaviateManager:
     async def get_chunks(
         self, client: WeaviateAsyncClient, uuid: str, page: int, pageSize: int
     ) -> list[dict]:
-
         if await self.verify_collection(client, self.document_collection_name):
-
             offset = pageSize * (page - 1)
 
             document = await self.get_document(client, uuid, properties=["meta"])
@@ -633,7 +658,6 @@ class WeaviateManager:
     async def get_vectors(
         self, client: WeaviateAsyncClient, uuid: str, showAll: bool
     ) -> dict:
-
         document = await self.get_document(client, uuid, properties=["meta", "title"])
 
         if document is None:
@@ -1163,7 +1187,7 @@ class EmbeddingManager:
     ) -> list[float]:
         try:
             if embedder in self.embedders:
-                config = rag_config["Embedder"].components[embedder].config
+                config = rag_config["Embedder"]["components"][embedder]["config"]
                 embeddings = await self.embedders[embedder].vectorize(config, [content])
                 return embeddings[0]
             else:
@@ -1195,11 +1219,11 @@ class RetrieverManager:
 
             embedder_model = (
                 rag_config["Embedder"]
-                .components[rag_config["Embedder"].selected]
-                .config["Model"]
-                .value
+                ["components"][rag_config["Embedder"]["selected"]]
+                ["config"]["Model"]
+                ["value"]
             )
-            config = rag_config["Retriever"].components[retriever].config
+            config = rag_config["Retriever"]["components"][retriever]["config"]
             documents, context = await self.retrievers[retriever].retrieve(
                 client,
                 query,
@@ -1230,9 +1254,9 @@ class GeneratorManager:
         @returns Iterator[dict] - Token response generated by the Generator in this format {system:TOKEN, finish_reason:stop or empty}.
         """
 
-        generator = rag_config["Generator"].selected
+        generator = rag_config["Generator"]["selected"]
         generator_config = (
-            rag_config["Generator"].components[rag_config["Generator"].selected].config
+            rag_config["Generator"]["components"][rag_config["Generator"]["selected"]]["config"]
         )
 
         if generator not in self.generators:
